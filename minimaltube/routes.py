@@ -57,7 +57,7 @@ from .media import (
     duration_failed,
     duration_pending,
     duration_pool,
-    fetch_thumbnail_bytes,
+    mark_thumbnail_used,
     meta_public,
     probe_duration,
     remember_chapters,
@@ -273,20 +273,17 @@ def live_bytes(video_id, format_id):
 
 @app.route("/thumb/<video_id>")
 def thumb(video_id):
-    """Local thumbnail of a downloaded video (fetched once, then served from disk);
-    other videos are proxied from YouTube without being stored."""
+    """A video's thumbnail from the cache folder. The first time it's asked for, it's fetched
+    from YouTube and kept there, so every thumbnail shown once also shows offline."""
     if not VIDEO_ID_RE.match(video_id):
         return "", 404
     p = thumb_path(video_id)
-    if not p.exists():
-        if cached_path(video_id).exists():
-            p = remember_thumbnail(video_id)
-        else:
-            data = fetch_thumbnail_bytes(video_id)
-            if not data:
-                return "", 404
-            return Response(data, mimetype="image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
-    if not p:
+    if p.exists():
+        mark_thumbnail_used(p)
+    elif not is_online():
+        return "", 404
+    elif not remember_thumbnail(video_id):
+        internet_up()  # a failed fetch may be a lost connection: the next ones don't wait for it
         return "", 404
     return send_file(p, mimetype="image/jpeg", max_age=86400)
 
@@ -677,6 +674,8 @@ def delete_video(video_id):
 def job_status(video_id: str):
     """A video's download state (None: not downloaded and no job)."""
     job = get_job(video_id)
+    if job.get("status") == "ready" and not cached_path(video_id).exists():
+        job = {}  # its file was removed since (by the cache sweep, or by hand)
     if not job:
         if not cached_path(video_id).exists():
             return None

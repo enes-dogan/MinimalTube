@@ -27,8 +27,8 @@ to fetch, download and stream videos. No YouTube page ever loads.
 - **Picks up where you left off**, with progress bars for every video. Captions in the
   video's own language, SponsorBlock skipping and chapters on the seekbar.
 - **Works offline.** Without internet an **OFFLINE** badge appears, downloaded videos keep
-  playing, and everything (the feed, downloads, history and playlist syncs) catches up
-  by itself when the connection is back.
+  playing, every thumbnail you've seen keeps showing, and everything (the feed, downloads,
+  history and playlist syncs) catches up by itself when the connection is back.
 - **Made for the keyboard.** Every list works with Tab, the arrow keys and Enter; every ⋮
   menu has letter shortcut keys. Press the **i** in Settings for all shortcuts.
 
@@ -117,8 +117,9 @@ Run `./install.sh` again if you move this folder.
 | The application-menu entry | `~/.local/share/applications/minimaltube.desktop` |
 | What lets the extension start the server | `~/.config/<browser>/NativeMessagingHosts/com.minimaltube.host.json` |
 
-Downloads older than 60 days are removed, and the folder is kept under 64 GB
-(`minimaltube/config.py`).
+Downloads older than 60 days are removed together with their thumbnails, captions and other
+saved info, thumbnails that nothing has shown for 60 days go too, and the folder is kept
+under 64 GB (`minimaltube/config.py`).
 
 ## Updating (Linux)
 

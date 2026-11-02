@@ -84,7 +84,8 @@ def start_server(port: int) -> dict:
     log_dir.mkdir(parents=True, exist_ok=True)
     log = open(log_dir / "server.log", "ab")
     proc = subprocess.Popen(
-        [sys.executable, str(script), "--host", "127.0.0.1", "--port", str(port)],
+        # -u: every line reaches the log as it's printed (a buffered one is lost on pkill)
+        [sys.executable, "-u", str(script), "--host", "127.0.0.1", "--port", str(port)],
         cwd=str(script.parent),
         stdin=subprocess.DEVNULL,
         stdout=log,  # never inherit our stdout: it's the native-messaging channel

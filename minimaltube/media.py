@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import subprocess
+import threading
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -119,7 +120,7 @@ def fetch_thumbnail_bytes(video_id: str):
     return None
 
 def remember_thumbnail(video_id: str):
-    """Keep the thumbnail of a downloaded video on disk so it shows offline. Returns its path or None."""
+    """Keep a video's thumbnail on disk so it shows offline. Returns its path or None."""
     if not video_id or not VIDEO_ID_RE.match(video_id):
         return None
     p = thumb_path(video_id)
@@ -129,13 +130,23 @@ def remember_thumbnail(video_id: str):
     if not data:
         return None
     try:
-        tmp = CACHE_DIR / f"{video_id}.jpg.tmp"
+        # one temp file per thread: the same thumbnail can be asked for twice at once
+        tmp = CACHE_DIR / f"{video_id}.jpg.{threading.get_ident()}.tmp"
         tmp.write_bytes(data)
         tmp.replace(p)
         return p
     except OSError as e:
         print(f"[thumb] couldn't save {p.name}: {e}")
         return None
+
+def mark_thumbnail_used(p: Path):
+    """A kept thumbnail that's shown again stays (see cleanup_unused_thumbnails); marked at most
+    once a day."""
+    try:
+        if time.time() - p.stat().st_mtime > 86400:
+            p.touch()
+    except OSError:
+        pass
 
 def meta_path(video_id: str) -> Path:
     return CACHE_DIR / f"{video_id}.meta.json"
@@ -270,12 +281,20 @@ def remember_chapters(video_id: str, info: dict):
 def cache_files():
     return list(CACHE_DIR.glob("*.mp4"))
 
+def remove_download(f: Path):
+    """The sweep removes a download with every file kept for it, as deleting it in the app does:
+    the feed doesn't read them, and playing the video again fetches them anew."""
+    if VIDEO_ID_RE.match(f.stem):
+        remove_video_files(f.stem)
+    else:
+        f.unlink()
+
 def cleanup_old_files():
     cutoff = time.time() - CACHE_MAX_AGE_DAYS * 86400
     for f in cache_files():
         try:
             if f.stat().st_mtime < cutoff:
-                f.unlink()
+                remove_download(f)
                 print(f"[cache] removed (older than {CACHE_MAX_AGE_DAYS}d): {f.name}")
         except FileNotFoundError:
             pass
@@ -288,16 +307,33 @@ def enforce_cache_size_limit():
         f = files[i]
         try:
             size = f.stat().st_size
-            f.unlink()
+            remove_download(f)
             total -= size
             print(f"[cache] removed (size cap {CACHE_MAX_BYTES // (1024**3)}GB): {f.name}")
         except FileNotFoundError:
             pass
         i += 1
 
+def cleanup_unused_thumbnails():
+    """Thumbnails of videos that aren't downloaded go once nothing has shown them for
+    CACHE_MAX_AGE_DAYS (a download's thumbnail goes with the download)."""
+    cutoff = time.time() - CACHE_MAX_AGE_DAYS * 86400
+    removed = 0
+    for f in CACHE_DIR.glob("*.jpg"):
+        try:
+            if (VIDEO_ID_RE.match(f.stem) and not cached_path(f.stem).exists()
+                    and f.stat().st_mtime < cutoff):
+                f.unlink()
+                removed += 1
+        except FileNotFoundError:
+            pass
+    if removed:
+        print(f"[cache] removed {removed} thumbnails not shown for {CACHE_MAX_AGE_DAYS}d")
+
 def run_cache_maintenance():
     cleanup_old_files()
     enforce_cache_size_limit()
+    cleanup_unused_thumbnails()
 
 def cache_maintenance_loop():
     while True:

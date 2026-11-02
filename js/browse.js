@@ -579,7 +579,8 @@ function makeVideoCard(chapter) {
     });
   }
   return makeCard({
-    thumb: chapter.thumbnail,
+    thumb: `${serverBase}/thumb/${chapter.id}`, // kept by the server, so it also shows offline
+    fallback: chapter.thumbnail,
     videoId: chapter.id,
     badge: chapter.duration ? fmtDur(chapter.duration) : null, // Shorts too: the badge is the length
     video: chapter,

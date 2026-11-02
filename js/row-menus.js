@@ -338,7 +338,8 @@ function renderSaveToMenu() {
     row.disabled = saveToBusy.has(pl.id);
     const thumb = document.createElement("div");
     thumb.className = "stThumb";
-    if (first && first.thumbnail) thumb.appendChild(makeThumbImg(first.thumbnail));
+    if (first && first.id)
+      thumb.appendChild(makeThumbImg(`${serverBase}/thumb/${first.id}`, first.thumbnail));
     const text = document.createElement("div");
     text.className = "stText";
     const name = document.createElement("div");

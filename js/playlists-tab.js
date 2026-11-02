@@ -207,7 +207,8 @@ function renderPlaylistCards() {
     const sub = el("div", "vSub", `${dl} of ${count} downloaded`);
     if (pl.yt) sub.appendChild(makeYtSyncTag());
     const card = makeCard({
-      thumb: first && first.thumbnail,
+      thumb: first && `${serverBase}/thumb/${first.id}`,
+      fallback: first && first.thumbnail,
       badge: `${count} video${count === 1 ? "" : "s"}`,
       title: pl.name,
       lines: [sub],
@@ -311,7 +312,7 @@ function makePlaylistItemCard(pl, item, idx) {
     loadPlaylistIntoQueue(pl, idx);
   };
   const card = makeCard({
-    thumb: item.downloaded ? `${serverBase}/thumb/${item.id}` : item.thumbnail,
+    thumb: `${serverBase}/thumb/${item.id}`,
     fallback: item.thumbnail,
     videoId: item.id,
     badge: item.duration ? fmtDur(item.duration) : null,

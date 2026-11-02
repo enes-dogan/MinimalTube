@@ -199,7 +199,8 @@ def ytdlp_channel_entries(channel_id: str, count: int, kind: str = "videos") -> 
         ts = e.get("timestamp") or e.get("release_timestamp")
         if not ts and e.get("upload_date"):
             try:
-                ts = datetime.strptime(str(e["upload_date"]), "%Y%m%d").timestamp()
+                ts = datetime.strptime(str(e["upload_date"]), "%Y%m%d").replace(
+                    tzinfo=timezone.utc).timestamp()
             except ValueError:
                 ts = None
         owner_id = e.get("channel_id")
