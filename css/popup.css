@@ -1,0 +1,137 @@
+/* MinimalTube - toolbar popup
+   Uses the shared tokens from tokens.css; the popup's panel sits on its own
+   slightly lighter background, so those two values are redefined here. */
+:root {
+  --bg: #0e0d12;
+  --panel: #17161d;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  width: 290px;
+  margin: 0;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    "Segoe UI",
+    -apple-system,
+    Roboto,
+    sans-serif;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.brand img {
+  width: 24px;
+  height: 24px;
+  display: block;
+  flex-shrink: 0;
+}
+h1 {
+  font-size: var(--fs-lg);
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: var(--fs-base);
+  margin-bottom: 10px;
+  transition:
+    border-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+input:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+button {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--accent);
+  color: var(--white);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s var(--ease),
+    transform 0.1s var(--ease);
+}
+button:hover {
+  background: var(--accent-dim);
+}
+button:active {
+  transform: scale(0.98);
+}
+button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+button.secondary {
+  background: 0 0;
+  border: 1px solid var(--line);
+  color: var(--text);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+button.secondary:hover {
+  background: var(--wash-2);
+  border-color: var(--wash-4);
+}
+button.secondary svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 4px;
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.divider::after,
+.divider::before {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.hint {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  margin-top: 12px;
+  line-height: 1.5;
+}
+#serverWarning {
+  display: none;
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  margin-top: 10px;
+  line-height: 1.5;
+  background: var(--danger-fill);
+  border: 1px solid var(--danger-fill);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+}

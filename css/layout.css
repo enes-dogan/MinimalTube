@@ -1,0 +1,95 @@
+/* MinimalTube - The player frame: stage, video, placeholder, scrims */
+
+/* ---- Frame and main area ---- */
+#playerFrame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  background: var(--bg);
+}
+#playerFrame:-webkit-full-screen,
+#playerFrame:fullscreen {
+  width: 100vw;
+  height: 100vh;
+}
+#mainArea {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+#stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--video-bg);
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+#video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--video-bg);
+  transition: filter 0.25s var(--ease);
+}
+
+/* ---- "Nothing is playing" placeholder ---- */
+#placeholder {
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  text-align: center;
+  padding: 32px;
+  max-width: 360px;
+  line-height: 1.6;
+}
+#placeholder::before {
+  content: "";
+  display: block;
+  margin: 0 auto 18px;
+  width: 64px;
+  height: 64px;
+  /* relative to this stylesheet, so up one level out of css/ */
+  background: url("../icons/icon128.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 18px var(--accent-glow));
+}
+
+/* ---- Scrim behind the video title ---- */
+#topScrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 96px;
+  z-index: var(--z-scrim);
+  background: linear-gradient(
+    to bottom,
+    var(--scrim),
+    transparent
+  );
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.35s var(--ease);
+}
+
+/* ---- Mouse idle while playing: the chrome fades out ---- */
+/* Playing and the mouse is idle: the queue / settings buttons are hidden, so the
+   indicator slides over to the right edge (right: 98px -> 12px). It slides back
+   to leave room for them as soon as the mouse moves. */
+#playerFrame.idle {
+  --dlIdle: 86px;
+}
+#playerFrame.idle #bottomScrim,
+#playerFrame.idle #controls,
+#playerFrame.idle #floatBtns,
+#playerFrame.idle #topScrim,
+#playerFrame.idle #videoTitleOverlay {
+  opacity: 0;
+  pointer-events: none;
+}
+#playerFrame.idle #video {
+  cursor: none;
+}

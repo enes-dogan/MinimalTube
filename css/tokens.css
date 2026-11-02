@@ -1,0 +1,124 @@
+/* MinimalTube - design tokens
+   The whole UI is built from the values below: change one here and every
+   panel, card, menu and button follows. Grouped by what they are for, not
+   by where they happen to be used. */
+:root {
+  /* Surfaces */
+  --bg: #0a0a0d;
+  --panel: rgba(22, 21, 28, 0.82); /* frosted side panel */
+  --panel-solid: #16151c; /* popups and menus that need to be opaque */
+  --glass: rgba(15, 14, 19, 0.82); /* dialogs floating over the video */
+  --glass-dim: rgba(15, 14, 19, 0.55); /* round buttons over the video */
+  --glass-hover: rgba(55, 48, 78, 0.88); /* those round buttons, hovered */
+  --surface-float: rgba(20, 19, 25, 0.94); /* toasts, tooltips, the error box */
+  --tooltip-bg: var(--surface-float);
+  --surface-dialog: rgba(22, 20, 30, 0.96); /* full cards: shortcuts, welcome */
+  --backdrop: rgba(8, 7, 12, 0.74); /* behind those full cards */
+  --backdrop-light: rgba(0, 0, 0, 0.55); /* behind the save-playlist dialog */
+  --scrim: rgba(0, 0, 0, 0.7); /* fades at the top / bottom of the video, caption boxes */
+  --badge-bg: rgba(0, 0, 0, 0.8); /* length / status badges on thumbnails */
+  --thumb-bg: #1a1920; /* behind a thumbnail that hasn't loaded */
+  --surface-raised: #121116; /* the selected browse tab */
+  --surface-lifted: #27233a; /* a row being dragged */
+  --surface-input: var(--wash-1); /* text fields, on any surface */
+  --switch-off: #2c2a35;
+  --video-bg: #000;
+
+  /* Accent */
+  --accent: #8a5cf5;
+  --accent-dim: #6d43d6; /* the accent, pressed or hovered */
+  --accent-glow: rgba(138, 92, 245, 0.45);
+  --accent-fill: rgba(138, 92, 245, 0.16); /* tinted buttons */
+  --accent-fill-hover: rgba(138, 92, 245, 0.3);
+  --accent-tint: rgba(138, 92, 245, 0.14); /* selected row or chip */
+  --accent-edge: rgba(138, 92, 245, 0.35); /* border of a tinted button */
+  --on-accent: #fff; /* text and icons on the accent (and on the destructive colour) */
+
+  /* Text */
+  --text: #f3f1f8;
+  --muted: #918fa0;
+  --text-active: #d7c8ff; /* title of the row being played */
+  --text-soft: rgba(255, 255, 255, 0.8);
+  --link: #b39bff;
+  --white: #fff;
+
+  /* Status */
+  --ok: #7ee787; /* downloaded */
+  --warn: #e8c15a; /* downloading / in progress */
+  --danger: #ff8a8a; /* error text */
+  --danger-fill: rgba(255, 138, 138, 0.12); /* hover wash of a destructive menu item */
+  --ok-edge: rgba(126, 231, 135, 0.4);
+  --close-hover: rgba(150, 45, 60, 0.92); /* the mini player's close button, hovered */
+  --destructive: #c0392b; /* confirm button of a destructive action */
+  --destructive-dim: #a93226;
+  --sponsor: #00d400; /* SponsorBlock's colour for sponsor segments */
+  --ring-done: #4ade80; /* finished download ring and its tick */
+  --ring-track: rgba(255, 255, 255, 0.16); /* unfilled part of that ring */
+
+  /* Lines, washes and depth. White washes come in five steps, faint to strong. */
+  --wash-1: rgba(255, 255, 255, 0.05);
+  --wash-2: rgba(255, 255, 255, 0.08);
+  --wash-3: rgba(255, 255, 255, 0.12);
+  --wash-4: rgba(255, 255, 255, 0.2);
+  --wash-5: rgba(255, 255, 255, 0.3);
+  --line: var(--wash-2);
+  --hover: var(--wash-2); /* hover wash on a dark surface */
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.5); /* panels and dialogs */
+  --shadow-menu: 0 10px 30px rgba(0, 0, 0, 0.55); /* context menus */
+  --shadow-dialog: 0 20px 50px rgba(0, 0, 0, 0.6); /* big centred cards */
+  --shadow-lift: 0 8px 24px rgba(0, 0, 0, 0.55); /* something picked up / hovering */
+  --shadow-panel: -20px 0 40px rgba(0, 0, 0, 0.35); /* the side panel */
+  --shadow-mini: 0 14px 44px rgba(0, 0, 0, 0.7); /* the mini player */
+  --shadow-text: 0 1px 6px rgba(0, 0, 0, 0.6); /* text over the video */
+
+  /* Keyboard focus: one ring everywhere (inset where an outer ring would be clipped) */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  --focus-ring-inset: inset 0 0 0 2px var(--accent);
+
+  /* Shape: corner radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+  --radius-round: 50%;
+
+  /* Type sizes */
+  --fs-2xs: 10.5px;
+  --fs-xs: 11.5px;
+  --fs-sm: 12px;
+  --fs-md: 12.5px;
+  --fs-base: 13px;
+  --fs-lg: 14px;
+  --fs-xl: 15px;
+  --fs-2xl: 18px;
+  --fs-3xl: 24px;
+  --fs-4xl: 30px;
+
+  /* Layers, bottom to top. Inside the player frame: */
+  --z-scrim: 15;
+  --z-flash: 18;
+  --z-title: 20;
+  --z-panel: 22; /* side panel, "Up next" */
+  --z-float-btns: 25; /* round buttons and the download ring over the video */
+  --z-controls: 26;
+  --z-help: 28;
+  --z-popup: 30; /* row menus, settings */
+  --z-popup-top: 31; /* "Save to", description */
+  --z-mini-btns: 35;
+  --z-player-notice: 40; /* toast and Undo bar inside the player (fullscreen) */
+  /* Over the whole window: */
+  --z-mini-player: 200;
+  --z-browse-float: 250; /* panels floated over the browse page, its toast */
+  --z-browse-float-top: 260;
+  --z-browse-menu: 300;
+  --z-modal: 400;
+  --z-app-popup: 600; /* "Save to" over the page, "Unsubscribe?" */
+  --z-undo: 650;
+  --z-skip: 700;
+  --z-welcome: 900;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}

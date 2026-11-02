@@ -1,0 +1,158 @@
+/* MinimalTube - Round buttons on the video and the download progress rings */
+
+/* ---- Queue / settings buttons on the video ---- */
+#floatBtns {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: var(--z-float-btns);
+  display: flex;
+  gap: 4px;
+  opacity: 1;
+  transition: opacity 0.35s var(--ease);
+}
+#floatBtns button {
+  background: var(--glass-dim);
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-round);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.18s var(--ease),
+    transform 0.12s var(--ease);
+}
+#floatBtns button svg {
+  width: 18px;
+  height: 18px;
+}
+#floatBtns button:hover {
+  background: var(--glass-hover);
+}
+#floatBtns button:active {
+  transform: scale(0.88);
+}
+#floatBtns button.active {
+  background: var(--accent);
+}
+
+/* ---- Download progress ring ---- */
+/* The same ring appears twice: over the video (#dlIndicator, which slides
+   sideways to dodge the open panel) and in the browse header
+   (#bpDlIndicator, which is just another button in that row). The badge
+   body and the SVG ring inside it are identical, so they are written once. */
+#dlIndicator,
+#bpDlIndicator {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-round);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.35s var(--ease),
+    transform 0.35s var(--ease),
+    visibility 0s linear 0.5s;
+}
+#dlIndicator {
+  position: absolute;
+  top: 12px;
+  right: 98px;
+  z-index: var(--z-float-btns);
+  background: var(--glass-dim);
+  /* --dlShift is set from JS: it pushes the indicator out to the left of
+     the queue / settings panel while one of them is open. */
+  /* --dlIdle (see #playerFrame.idle) moves it to the far right while the
+     queue / settings buttons are faded out. */
+  transform: translateX(calc(var(--dlShift, 0px) + var(--dlIdle, 0px)));
+}
+#bpDlIndicator {
+  position: relative;
+  flex-shrink: 0;
+  margin-right: 4px;
+  background: var(--hover);
+}
+#dlIndicator.show,
+#bpDlIndicator.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 0.25s var(--ease),
+    transform 0.35s var(--ease),
+    visibility 0s linear 0s;
+}
+#bpDlIndicator.show {
+  cursor: pointer;
+}
+
+/* Leaving: fade out while drifting a little further to the right. */
+#dlIndicator.leave {
+  opacity: 0;
+  transform: translateX(calc(var(--dlShift, 0px) + var(--dlIdle, 0px) + 28px));
+}
+#bpDlIndicator.leave {
+  opacity: 0;
+  transform: translateX(28px);
+}
+
+/* The ring itself: a full circle track with the progress arc drawn on top.
+   js/player-ui.js animates .fg's stroke-dashoffset (dasharray 97.4 = its
+   circumference) and swaps the number for a tick when it reaches 100%. */
+#dlIndicator .ring,
+#bpDlIndicator .ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+#dlIndicator circle,
+#bpDlIndicator circle {
+  fill: none;
+  stroke-width: 3;
+}
+#dlIndicator .bg,
+#bpDlIndicator .bg {
+  stroke: var(--ring-track);
+}
+#dlIndicator .fg,
+#bpDlIndicator .fg {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: 97.4;
+  stroke-dashoffset: 97.4;
+  transition:
+    stroke-dashoffset 0.6s var(--ease),
+    stroke 0.25s var(--ease);
+}
+#dlIndicator .tick,
+#bpDlIndicator .tick {
+  display: none;
+  width: 20px;
+  height: 20px;
+  color: var(--ring-done);
+}
+#dlIndicator.done .fg,
+#bpDlIndicator.done .fg {
+  stroke: var(--ring-done);
+}
+#dlIndicator.done .num,
+#bpDlIndicator.done .num {
+  display: none;
+}
+#dlIndicator.done .tick,
+#bpDlIndicator.done .tick {
+  display: block;
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/popup.css" />
+  </head>
+  <body>
+    <div class="brand">
+      <img src="icons/icon48.png" alt="" />
+      <h1>MinimalTube</h1>
+    </div>
+    <input id="url" type="text" placeholder="Paste YouTube URL…" autofocus />
+    <button id="play">Add to Queue</button>
+    <div class="divider">or</div>
+    <button id="openApp" class="secondary">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7zM5 5h5V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-5h-2v5H5V5z"
+        />
+      </svg>
+      <span id="openAppLabel">Open MinimalTube</span>
+    </button>
+    <div class="hint">
+      Tip: right-click any YouTube link on any page and choose "Add to
+      MinimalTube queue" to skip this popup entirely.
+    </div>
+    <div id="serverWarning"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

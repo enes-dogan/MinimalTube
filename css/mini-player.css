@@ -1,0 +1,126 @@
+/* MinimalTube - The small floating player shown while browsing */
+
+/* ---- Mini frame: most of the chrome is hidden ---- */
+
+#playerFrame.mini {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 400px;
+  height: 225px;
+  z-index: var(--z-mini-player);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--wash-3);
+  box-shadow: var(--shadow-mini);
+  transition: right 0.32s var(--ease);
+}
+#playerFrame.mini #playlistPanel,
+#playerFrame.mini #settingsPanel,
+#playerFrame.mini #floatBtns,
+#playerFrame.mini #topScrim,
+#playerFrame.mini #videoTitleOverlay,
+#playerFrame.mini #descPopup,
+#playerFrame.mini #upNext,
+#playerFrame.mini #dlIndicator,
+#playerFrame.mini #centerFlash {
+  display: none !important;
+}
+#playerFrame.mini #controls {
+  padding: 2px 8px 6px;
+}
+/* play / pause, the seekbar and Back / Next (shown by updateSkipButtons, as in the full player) */
+#playerFrame.mini #controls > :not(#playPause):not(#seekWrap):not(#prevBtn):not(#nextBtn) {
+  display: none;
+}
+#playerFrame.mini #placeholder {
+  font-size: 0;
+  padding: 0;
+}
+#playerFrame.mini #placeholder::before {
+  margin: 0 auto;
+  width: 34px;
+  height: 34px;
+}
+
+/* ---- The two corner buttons ---- */
+/* Expand (top left) and close (top right): the same small square button,
+   only the corner and the hover colour differ. Both appear only in mini
+   mode and fade out with the rest of the chrome when the mouse idles. */
+#miniExpand,
+#miniClose {
+  display: none;
+  position: absolute;
+  top: 8px;
+  z-index: var(--z-mini-btns);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--glass);
+  color: var(--white);
+  cursor: pointer;
+  transition:
+    opacity 0.35s var(--ease),
+    background 0.15s var(--ease);
+}
+#miniExpand svg,
+#miniClose svg {
+  width: 18px;
+  height: 18px;
+}
+#playerFrame.mini #miniExpand,
+#playerFrame.mini #miniClose {
+  display: flex;
+}
+#playerFrame.idle #miniExpand,
+#playerFrame.idle #miniClose {
+  opacity: 0;
+  pointer-events: none;
+}
+#miniExpand {
+  left: 8px;
+}
+#miniExpand:hover {
+  background: var(--glass-hover);
+}
+#miniClose {
+  right: 8px;
+  transition:
+    opacity 0.35s var(--ease),
+    background 0.15s var(--ease),
+    transform 0.12s var(--ease);
+}
+#miniClose:hover {
+  background: var(--close-hover);
+}
+#miniClose:active {
+  transform: scale(0.92);
+}
+
+/* ---- Nothing loaded yet: no empty mini window ---- */
+
+#playerFrame.mini.empty {
+  display: none;
+}
+#playerFrame.mini #placeholder button {
+  display: none;
+}
+
+/* ---- It slides out from under the queue panel ---- */
+body.queueOpen #playerFrame.mini {
+  right: min(calc(var(--bpQueueW, 380px) + 12px), max(18px, calc(100vw - 418px)));
+}
+
+/* ---- Closing animation ---- */
+/* Fades and shrinks towards the corner it lives in. */
+#playerFrame.mini.closing {
+  opacity: 0;
+  transform: translateY(12px) scale(0.88);
+  transform-origin: 100% 100%;
+  pointer-events: none;
+  transition: opacity 0.22s var(--ease), transform 0.24s var(--ease);
+}

@@ -1,0 +1,646 @@
+/* MinimalTube - Browse page: Subscriptions, Playlists and Downloads */
+
+/* ---- Page shell and tabs ---- */
+#browsePage {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--bg);
+}
+body.browsing #browsePage {
+  display: flex;
+}
+#browseTop {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+#browseTabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  background: var(--hover);
+}
+#browseTabs button {
+  padding: 8px 30px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+#browseTabs button:hover {
+  color: var(--text);
+}
+#browseTabs button.active {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+#browseBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px 290px;
+}
+.bpView {
+  display: none;
+}
+.bpView.active {
+  display: block;
+}
+
+/* ---- Add-a-channel bar ---- */
+#subsBar {
+  flex-wrap: wrap;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 760px;
+  padding-bottom: 16px;
+}
+#subAddInput {
+  flex: 1;
+  min-width: 180px;
+  padding: 10px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--wash-1);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+#subAddInput:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+#feedRefresh {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-round);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+#feedRefresh:hover {
+  background: var(--hover);
+}
+#feedRefresh svg {
+  width: 18px;
+  height: 18px;
+}
+#feedRefresh.spinning svg {
+  animation: spin 0.9s linear infinite;
+}
+.vThumb img.failed {
+  visibility: hidden;
+}
+#feedNewPill {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  display: block;
+  height: 32px;
+  margin: 0 auto -32px;
+  padding: 0 14px;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.2s var(--ease),
+    visibility 0s linear 0.2s;
+}
+#feedNewPill.show {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.2s var(--ease);
+}
+#feedGrid .vSub.vChan {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--link);
+  cursor: pointer;
+}
+#feedGrid .vSub.vChan:hover {
+  text-decoration: underline;
+}
+#feedGrid .vCard.fresh {
+  animation: fadeIn 0.4s var(--ease);
+}
+#subsToggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px 0 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+#subsToggle:hover:not(:disabled) {
+  background: var(--hover);
+}
+#subsToggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#subsToggle.open {
+  background: var(--accent-fill);
+  border-color: var(--accent-glow);
+}
+#subsToggle .stIcon {
+  width: 17px;
+  height: 17px;
+}
+#subsToggle .stChevron {
+  width: 18px;
+  height: 18px;
+  margin-left: -3px;
+  transition: transform 0.2s var(--ease);
+}
+#subsToggle.open .stChevron {
+  transform: rotate(180deg);
+}
+#subsToggleCount {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+#subsToggleCount:empty {
+  display: none;
+}
+
+/* ---- Channel chips and the focus filter ---- */
+#subFocus {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  padding-bottom: 12px;
+}
+#subFocus.show {
+  display: flex;
+}
+#subChips {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 20px;
+}
+#subChips.open {
+  display: flex;
+}
+#subFocus + #subChips {
+  margin-top: 10px;
+}
+.subChip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-tint);
+  border: 1px solid var(--accent-edge);
+  font-size: var(--fs-sm);
+  outline: none;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease),
+    opacity 0.15s var(--ease);
+}
+.subChipName {
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  padding: 1px 2px;
+  outline: none;
+  transition: color 0.15s var(--ease);
+}
+.subChipName:hover {
+  color: var(--white);
+}
+.subChip.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--white);
+}
+.subChip.selected button {
+  color: var(--text-soft);
+}
+#subChips.filtering .subChip:not(.selected) {
+  opacity: 0.55;
+}
+#subChips.filtering .subChip:not(.selected):hover {
+  opacity: 1;
+}
+.subChip button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-round);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  line-height: 18px;
+  cursor: pointer;
+}
+.subChip button:hover {
+  background: var(--wash-3);
+  color: var(--text);
+}
+
+/* ---- Playlist page ---- */
+#plDetail {
+  display: none;
+}
+#plView.detail #plGrid {
+  display: none;
+}
+#plView.detail #plDetail {
+  display: block;
+}
+#plHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 18px;
+}
+#plBack {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-round);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+#plBack:hover {
+  background: var(--hover);
+}
+#plBack svg {
+  width: 20px;
+  height: 20px;
+}
+#plHeadText {
+  flex: 1;
+  min-width: 0;
+}
+#plHeadTitle {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#plHeadSub {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+#plPlayAll {
+  flex-shrink: 0;
+  padding-left: 12px;
+}
+#plPlayAll svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---- Card grids ---- */
+#plGrid.sorting,
+#plItemsGrid.sorting,
+#dlGrid.sorting {
+  user-select: none;
+  cursor: grabbing;
+}
+#plGrid.sorting .vCard:not(.dragging),
+#plItemsGrid.sorting .vCard:not(.dragging),
+#dlGrid.sorting .vCard:not(.dragging) {
+  transition: transform 0.22s var(--ease);
+  pointer-events: none;
+}
+#plGrid .vCard.dragging,
+#plItemsGrid .vCard.dragging,
+#dlGrid .vCard.dragging {
+  position: relative;
+  z-index: var(--z-popup);
+  pointer-events: none;
+  filter: drop-shadow(0 14px 26px var(--backdrop-light));
+  opacity: 0.96;
+}
+/* Subscriptions, Playlists and Downloads all use the same card grid. */
+#feedGrid,
+#plGrid,
+#plItemsGrid,
+#dlGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 22px 16px;
+}
+
+/* ---- Video card ---- */
+.vCard {
+  min-width: 0;
+  outline: none;
+}
+.vThumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--thumb-bg);
+  cursor: pointer;
+}
+.vThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.25s var(--ease);
+}
+.vCard:hover .vThumb img,
+.vCard:focus-visible .vThumb img {
+  transform: scale(1.03);
+}
+.vCard:focus-visible {
+  box-shadow: none;
+}
+.vCard:focus-visible .vThumb {
+  box-shadow: var(--focus-ring);
+}
+.vCard:focus-visible .vTitle {
+  color: var(--text-active);
+}
+
+/* ---- Watch progress bar along a thumbnail ---- */
+.watchBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--wash-5);
+  z-index: 2;
+  pointer-events: none;
+}
+.watchBar i {
+  display: block;
+  height: 100%;
+  background: var(--watch-color, var(--accent));
+}
+.plThumb .watchBar {
+  height: 3px;
+}
+
+/* ---- Badges ---- */
+.vBadge {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--badge-bg);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.vBadge.short {
+  background: var(--accent);
+  letter-spacing: 0.2px;
+}
+.vBadge.ok {
+  right: auto;
+  left: 6px;
+  color: var(--ok);
+}
+
+/* ---- Card title and meta ---- */
+.vMeta {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.vText {
+  flex: 1;
+  min-width: 0;
+}
+.vTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.vTitle:hover {
+  color: var(--text-active);
+}
+.vSub {
+  margin-top: 3px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vMenuBtn {
+  width: 28px;
+  height: 28px;
+  margin: -4px -6px 0 0;
+}
+.vMenuBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---- Empty / status lines ---- */
+#feedStatus,
+.bpEmpty {
+  padding: 22px 0;
+  text-align: center;
+  font-size: var(--fs-base);
+  color: var(--muted);
+  grid-column: 1 / -1;
+}
+#feedStatus a {
+  color: var(--accent);
+  cursor: pointer;
+}
+.bpEmpty {
+  max-width: 420px;
+  margin: 40px auto 0;
+  line-height: 1.6;
+}
+
+/* ---- "Browse subscriptions" button on the placeholder ---- */
+#placeholderBrowse {
+  display: flex;
+  margin: 18px auto 0;
+  padding: 9px 20px;
+}
+
+/* ---- Header: brand and action buttons ---- */
+#browseBrand {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  user-select: none;
+}
+#browseBrand img {
+  width: 30px;
+  height: 30px;
+  display: block;
+  flex-shrink: 0;
+}
+#browseBrand span {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text);
+}
+#browseBrand #offlineBadge {
+  display: none;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+#browseBrand #offlineBadge.show {
+  display: inline-block;
+}
+@media (max-width: 980px) {
+  #browseBrand span:not(#offlineBadge) {
+    display: none;
+  }
+}
+#browseActions {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 6px;
+}
+#browseActions button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-round);
+  background: var(--hover);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s var(--ease), transform 0.1s var(--ease);
+}
+#browseActions button:hover {
+  background: var(--wash-4);
+}
+#browseActions button:active {
+  transform: scale(0.94);
+}
+#browseActions svg {
+  width: 18px;
+  height: 18px;
+}
+/* Toggled on (the queue or settings panel is open). Declared after :hover,
+   which has the same specificity, so an open panel stays accent-coloured
+   while the pointer is over its button. */
+#browseActions button.active {
+  background: var(--accent);
+  color: var(--white);
+}
+
+/* ---- Downloads tab ---- */
+.vBadge.prog {
+  color: var(--warn);
+}
+.vCard.playing .vThumb {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.ytSyncTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.ytSyncTag svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---- "Skip to videos": shown only while it has the keyboard (the first Tab on the browse page) ---- */
+#skipLink {
+  position: fixed;
+  left: 16px;
+  top: 12px;
+  z-index: var(--z-skip);
+  padding: 8px 16px;
+  border: 1px solid var(--accent-edge);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+  transform: translateY(-200%);
+  transition: transform 0.15s var(--ease);
+}
+#skipLink:focus {
+  outline: none;
+}
+#skipLink:focus-visible {
+  transform: none;
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-pop);
+}
+body:not(.browsing) #skipLink {
+  display: none;
+}

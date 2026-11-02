@@ -1,0 +1,62 @@
+/* MinimalTube - Resets and shared animations */
+
+/* ---- Reset ---- */
+* {
+  box-sizing: border-box;
+}
+* {
+  scrollbar-width: none !important;
+  scrollbar-color: unset !important;
+}
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Page ---- */
+body,
+html {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    "Segoe UI",
+    -apple-system,
+    Roboto,
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button {
+  font-family: inherit;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---- Animations used across the UI ---- */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Accessibility ---- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}

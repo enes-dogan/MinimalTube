@@ -1,0 +1,144 @@
+/* MinimalTube - buttons, key hints and keyboard focus
+   Shared by every screen; the component files only add layout (margins, width, position). */
+
+/* ---- Text buttons ----
+   `.btn` plus one look: `.btn-primary` (the main action), `.btn-ghost` (the other choices),
+   `.btn-tint` (a light accent for small helpers like Undo) or `.btn-danger` (confirming
+   something destructive). On the page they're pills; inside dialogs and panels they're
+   rounded rectangles: `.btn-rect`, smaller `.btn-sm`, or full-width `.btn-block`. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s var(--ease),
+    border-color 0.15s var(--ease),
+    transform 0.1s var(--ease);
+}
+.btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-dim);
+}
+.btn-ghost {
+  border-color: var(--line);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--wash-4);
+}
+.btn-tint {
+  background: var(--accent-fill);
+  border-color: var(--accent-edge);
+}
+.btn-tint:hover:not(:disabled) {
+  background: var(--accent-fill-hover);
+}
+.btn-danger {
+  background: var(--destructive);
+  color: var(--on-accent);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--destructive-dim);
+}
+.btn-rect,
+.btn-sm,
+.btn-block {
+  border-radius: var(--radius-md);
+}
+.btn-sm {
+  padding: 7px 14px;
+  font-size: var(--fs-sm);
+}
+.btn-block {
+  width: 100%;
+  padding: 9px;
+  font-size: var(--fs-sm);
+}
+
+/* ---- ⋮ buttons: cards (.vMenuBtn) and rows (.plMenuBtn) look the same, in two sizes.
+   Dimmed until their card / row is hovered, focused or has its menu open. ---- */
+.vMenuBtn,
+.plMenuBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-round);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0.6;
+  transition:
+    opacity 0.12s var(--ease),
+    background 0.12s var(--ease);
+}
+.vMenuBtn svg,
+.plMenuBtn svg {
+  pointer-events: none;
+}
+.vCard:hover .vMenuBtn,
+.vCard:focus-visible .vMenuBtn,
+.plItem:hover .plMenuBtn,
+.plItem:focus-visible .plMenuBtn,
+.plItem.menuOpen .plMenuBtn,
+.vMenuBtn:hover,
+.plMenuBtn:hover {
+  opacity: 1;
+}
+.vMenuBtn:hover,
+.plMenuBtn:hover,
+.plItem.menuOpen .plMenuBtn {
+  background: var(--wash-3);
+}
+
+/* ---- Key hints: menu letters, the Undo button, the shortcuts overlay ---- */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--wash-4);
+  border-radius: var(--radius-xs);
+  background: var(--wash-2);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ---- Keyboard focus: the same ring everywhere; mouse clicks show nothing ---- */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

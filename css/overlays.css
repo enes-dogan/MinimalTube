@@ -1,0 +1,727 @@
+/* MinimalTube - Everything that floats over the video */
+
+/* ---- Loading spinner ---- */
+#loading {
+  position: absolute;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: var(--fs-base);
+  animation: fadeIn 0.25s var(--ease);
+}
+.spinner {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-round);
+  border: 3px solid var(--wash-3);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+/* ---- Error box and toasts ---- */
+#errorBox {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 80%;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-float);
+  border: 1px solid var(--line);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  text-align: center;
+  white-space: pre-wrap;
+  display: none;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.2s var(--ease);
+}
+/* ---- The toast: one for the whole app (notify() in js/core.js) ---- */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 84px; /* over the control bar */
+  z-index: var(--z-browse-float);
+  max-width: min(80%, 520px);
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-float);
+  color: var(--ok);
+  font-size: var(--fs-md);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 6px);
+  transition:
+    opacity 0.25s var(--ease),
+    transform 0.25s var(--ease);
+}
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+#toast.error {
+  color: var(--danger);
+}
+body.browsing #toast {
+  bottom: 24px;
+}
+#playerFrame > #toast {
+  position: absolute; /* fullscreen: it moves into the player */
+  z-index: var(--z-player-notice);
+}
+
+/* ---- Video title ---- */
+#videoTitleOverlay {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  max-width: calc(100% - 150px);
+  z-index: var(--z-title);
+  cursor: pointer;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  color: var(--text);
+  text-shadow: var(--shadow-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.3s var(--ease),
+    transform 0.3s var(--ease);
+}
+#videoTitleOverlay.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+#videoTitleOverlay.visible:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--wash-5);
+  text-underline-offset: 3px;
+}
+
+/* ---- Description popup ---- */
+#descPopup {
+  position: absolute;
+  top: 48px;
+  left: 14px;
+  z-index: var(--z-popup-top);
+  width: min(560px, calc(100% - 28px));
+  max-height: calc(100% - 150px);
+  overflow-y: auto;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--text);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  transform-origin: top left;
+  transition:
+    opacity 0.18s var(--ease),
+    transform 0.18s var(--ease),
+    visibility 0s linear 0.18s;
+}
+#descPopup.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition:
+    opacity 0.18s var(--ease),
+    transform 0.18s var(--ease),
+    visibility 0s linear 0s;
+}
+#descMeta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  margin-bottom: 2px;
+}
+#descChannel[hidden] {
+  display: none;
+}
+#descDate {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+#descDate:empty,
+#descViews:empty {
+  display: none;
+}
+#descViews {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#descDate:not(:empty) + #descViews::before {
+  content: "\00b7";
+  margin-right: 10px;
+}
+#descShare {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+#descShare:hover {
+  background: var(--hover);
+}
+#descShare.done {
+  color: var(--ok);
+  border-color: var(--ok-edge);
+}
+#descShare svg {
+  width: 13px;
+  height: 13px;
+}
+#descChannel {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#descChannel:hover:not(:disabled) {
+  text-decoration: underline;
+}
+#descChannel:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+#descBody {
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  cursor: text;
+}
+#descBody.muted {
+  color: var(--muted);
+}
+#descBody a {
+  color: var(--link);
+  text-decoration: none;
+  cursor: pointer;
+}
+#descBody a:hover {
+  text-decoration: underline;
+}
+#descBody a.ytlink::before {
+  content: "+ ";
+  color: var(--muted);
+}
+
+/* ---- Centre dialogs: "Up next" and "Unsubscribe?" ---- */
+/* One card, used twice. "Up next" sits inside the player and counts down for
+   5s; "Unsubscribe?" sits over the whole app, counts down for 8s and paints
+   its confirm button and bar in the destructive colour (overrides at the end
+   of this section). Everything else is shared. */
+#upNext,
+#confirmUnsub {
+  width: min(420px, calc(100% - 48px));
+  top: 50%;
+  left: 50%;
+  padding: 18px 20px 16px;
+  border-radius: var(--radius-xl);
+  background: var(--glass);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  text-align: center;
+  overflow: hidden;
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -46%);
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.2s var(--ease),
+    visibility 0s linear 0.2s;
+}
+#upNext {
+  position: absolute;
+  z-index: var(--z-panel);
+}
+#confirmUnsub {
+  position: fixed;
+  z-index: var(--z-app-popup);
+}
+#upNext.show,
+#confirmUnsub.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.2s var(--ease),
+    visibility 0s linear 0s;
+}
+#upNext .unLabel,
+#confirmUnsub .unLabel {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+#upNext .unTitle,
+#confirmUnsub .unTitle {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+#upNext .unCount,
+#confirmUnsub .unCount {
+  margin-top: 8px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#upNext .unActions,
+#confirmUnsub .unActions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+/* The countdown bar: full width, shrinking to nothing over the countdown. */
+#upNext .unBar,
+#confirmUnsub .unBar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(1);
+}
+#upNext.run .unBar {
+  animation: barShrink 5s linear forwards;
+}
+#confirmUnsub.run .unBar {
+  animation: barShrink 8s linear forwards;
+}
+@keyframes barShrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* "Unsubscribe?" only: a destructive bar (its button is .btn-danger). */
+#confirmUnsub .unBar {
+  background: var(--destructive);
+}
+
+/* ---- "Save queue as playlist" modal ---- */
+#savePlModal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--backdrop-light);
+  backdrop-filter: blur(3px);
+}
+#savePlModal.open {
+  display: flex;
+  animation: fadeIn 0.15s var(--ease);
+}
+#savePlDialog {
+  width: 340px;
+  max-width: calc(100% - 32px);
+  padding: 20px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-dialog);
+}
+#savePlDialog h2 {
+  margin: 0 0 4px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text);
+}
+#savePlSub {
+  margin-bottom: 14px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+#savePlName {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--wash-1);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  transition:
+    border-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+#savePlName:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+#savePlHint {
+  min-height: 16px;
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  color: var(--warn);
+}
+.savePlActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ---- Keyboard shortcuts overlay ---- */
+#shortcutHelp {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-help);
+  background: var(--backdrop);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.18s var(--ease);
+  cursor: pointer;
+}
+#playerFrame.helpOpen #controls,
+#playerFrame.helpOpen #floatBtns {
+  z-index: var(--z-popup);
+  opacity: 1;
+  pointer-events: none;
+}
+#playerFrame.helpOpen #bottomScrim {
+  opacity: 1;
+}
+/* the shortcuts overlay shows its keys a size bigger */
+#shortcutHelp .kbd {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-color: var(--wash-5);
+  border-bottom-width: 2px;
+  background: var(--wash-3);
+  color: var(--white);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.helpLabel {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border-radius: var(--radius-md);
+  background: var(--surface-dialog);
+  border: 1px solid var(--accent-edge);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  box-shadow: var(--shadow-lift);
+}
+.helpLabel span:last-child {
+  margin-left: 4px;
+}
+.helpLine {
+  position: absolute;
+  z-index: 0;
+  width: 1px;
+  background: linear-gradient(var(--accent), var(--accent-fill-hover));
+}
+.helpLine::after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  bottom: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-round);
+  background: var(--accent);
+}
+.helpLineH {
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-fill-hover), var(--accent));
+}
+.helpLineH::after {
+  left: auto;
+  right: -3px;
+  bottom: -3px;
+}
+.helpSection {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.helpCard {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 32px));
+  overflow: auto;
+  padding: 16px 20px 14px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-dialog);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-dialog);
+  color: var(--text);
+  font-size: var(--fs-md);
+}
+.helpTitle {
+  margin-bottom: 10px;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+.helpGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px 16px;
+  align-items: center;
+}
+.helpKeys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.helpDots {
+  color: var(--muted);
+}
+.helpHint {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+/* ---- "… deleted · Undo" bar ---- */
+#undoBar {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: var(--z-undo);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(460px, calc(100vw - 48px));
+  padding: 9px 10px 11px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: var(--fs-md);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.2s var(--ease),
+    visibility 0s linear 0.2s;
+}
+#undoBar.show {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.2s var(--ease);
+}
+#undoBar .ubText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#undoBar .ubUndo {
+  flex-shrink: 0;
+  padding: 5px 12px;
+}
+#undoBar .ubUndo .kbd {
+  margin-left: 7px;
+}
+#undoBar .ubBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transform-origin: left;
+}
+#undoBar.show .ubBar {
+  animation: barShrink 5s linear forwards;
+}
+/* over the full player (windowed or fullscreen) it sits above the control bar, not on it */
+body:not(.browsing) #undoBar {
+  bottom: 76px;
+}
+#playerFrame > #undoBar {
+  position: absolute;
+  left: 20px;
+  bottom: 76px;
+  z-index: var(--z-player-notice);
+}
+
+/* ---- Welcome (first start, or ★ in Settings): styled like the shortcuts card ---- */
+#welcome {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-welcome);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--backdrop);
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.2s var(--ease);
+}
+.welcomeCard {
+  width: min(720px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 28px 30px 22px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-dialog);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+}
+.welcomeHead {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 22px;
+}
+.welcomeHead img {
+  width: 104px;
+  height: 104px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 8px 24px var(--accent-glow));
+}
+.welcomeHead h1 {
+  margin: 0 0 6px;
+  font-size: var(--fs-4xl);
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.15;
+}
+.welcomeHead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  line-height: 1.45;
+}
+.welcomeList {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.welcomeList li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.welcomeIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent-fill);
+  border: 1px solid var(--accent-edge);
+  color: var(--link);
+  font-size: var(--fs-lg);
+}
+.welcomeList b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--fs-lg);
+}
+.welcomeList span {
+  color: var(--muted);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+.welcomeList span b {
+  display: inline;
+  color: var(--text);
+  font-size: inherit;
+  font-weight: 600;
+}
+.welcomeActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+@media (max-width: 560px) {
+  .welcomeHead {
+    flex-direction: column;
+    text-align: center;
+  }
+  .welcomeHead h1 {
+    font-size: var(--fs-3xl);
+  }
+}

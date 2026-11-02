@@ -1,0 +1,420 @@
+/* MinimalTube - Transport bar, seek bar, captions and the centre flash */
+
+/* ---- Scrim behind the control bar ---- */
+#bottomScrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 130px;
+  z-index: var(--z-scrim);
+  background: linear-gradient(to top, var(--scrim), transparent);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.35s var(--ease);
+}
+
+/* ---- Control bar ---- */
+#controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-controls);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 16px 14px;
+  opacity: 1;
+  transition: opacity 0.35s var(--ease);
+}
+#controls.dlWait #playPause,
+#controls.dlWait #seekWrap,
+#controls.dlWait #captionsBtn,
+#controls.dlWait #speedBadge,
+#controls.dlWait #time,
+#controls.loadFailed #playPause,
+#controls.loadFailed #seekWrap,
+#controls.loadFailed #captionsBtn,
+#controls.loadFailed #speedBadge,
+#controls.loadFailed #time,
+#controls.loadFailed #fullscreen {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* ---- Round icon buttons ---- */
+#controls button {
+  background: 0 0;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-round);
+  transition:
+    background 0.15s var(--ease),
+    transform 0.1s var(--ease);
+}
+#controls button:hover {
+  background: var(--wash-3);
+}
+#controls button:active {
+  transform: scale(0.88);
+}
+#controls svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---- Two-state icons (play/pause, fullscreen, mute) swap by class ---- */
+#playPause .icon-pause {
+  display: none;
+}
+#playPause.is-playing .icon-play {
+  display: none;
+}
+#playPause.is-playing .icon-pause {
+  display: flex;
+}
+#fullscreen .icon-compress {
+  display: none;
+}
+#fullscreen.is-fullscreen .icon-expand {
+  display: none;
+}
+#fullscreen.is-fullscreen .icon-compress {
+  display: flex;
+}
+#captionsBtn.active {
+  background: var(--accent);
+}
+#captionsBtn.active:hover {
+  background: var(--accent-dim);
+}
+#volumeIcon .icon-vol-mute {
+  display: none;
+}
+#volumeIcon.is-muted .icon-vol-on {
+  display: none;
+}
+#volumeIcon.is-muted .icon-vol-mute {
+  display: flex;
+}
+
+/* ---- Subtitle cues ---- */
+video::cue {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  background: var(--scrim);
+  color: var(--white);
+}
+video::-webkit-media-text-track-display {
+  transform: translateY(-60px);
+}
+
+/* ---- Centre flash on play/pause and seek ---- */
+#centerFlash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: var(--z-flash);
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-round);
+  background: var(--glass-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.7);
+  opacity: 0;
+}
+#centerFlash svg {
+  width: 32px;
+  height: 32px;
+}
+#centerFlash .icon-pause {
+  display: none;
+}
+#centerFlash.show-pause .icon-play {
+  display: none;
+}
+#centerFlash.show-pause .icon-pause {
+  display: flex;
+}
+#centerFlash .txt {
+  display: none;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#centerFlash.show-text .txt {
+  display: block;
+}
+#centerFlash.show-text svg {
+  display: none !important;
+}
+#centerFlash.flash {
+  animation: centerFlashPop 0.55s var(--ease);
+}
+@keyframes centerFlashPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  20% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+}
+
+/* ---- Seek bar ---- */
+#seekWrap {
+  position: relative;
+  flex: 1;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  margin: 0 4px;
+  cursor: pointer;
+}
+#seekTrack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: var(--radius-xs);
+  background: var(--wash-4);
+  transition: height 0.12s var(--ease);
+}
+#seekWrap:focus-within #seekTrack,
+#seekWrap:hover #seekTrack {
+  height: 6px;
+}
+#seekBuffered {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  pointer-events: none;
+  transition: height 0.12s var(--ease);
+}
+#seekBuffered i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-xs);
+  background: var(--wash-5);
+}
+#seekWrap:focus-within #seekBuffered,
+#seekWrap:hover #seekBuffered {
+  height: 6px;
+}
+#seekProgress {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  border-radius: var(--radius-xs);
+  width: 0%;
+  background: var(--accent);
+  transition: height 0.12s var(--ease);
+  pointer-events: none;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+#seekProgress.jump {
+  transition:
+    width 0.22s var(--ease),
+    height 0.12s var(--ease);
+}
+#seekWrap:focus-within #seekProgress,
+#seekWrap:hover #seekProgress {
+  height: 6px;
+}
+#seek {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: 0 0;
+  cursor: pointer;
+}
+#seek::-webkit-slider-runnable-track {
+  background: 0 0;
+  height: 18px;
+}
+#seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--radius-round);
+  background: var(--accent);
+  border: 2px solid var(--white);
+  margin-top: 2px;
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 0.15s var(--ease),
+    transform 0.15s var(--ease);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+#seekWrap:focus-within #seek::-webkit-slider-thumb,
+#seekWrap:hover #seek::-webkit-slider-thumb {
+  opacity: 1;
+  transform: scale(1);
+}
+#seek::-moz-range-track {
+  background: 0 0;
+  height: 4px;
+}
+#seek::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: var(--radius-round);
+  background: var(--accent);
+  border: 2px solid var(--white);
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+#seekWrap:hover #seek::-moz-range-thumb {
+  opacity: 1;
+}
+
+/* ---- Time, speed and volume ---- */
+#time {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin: 0 6px 0 4px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+#speedBadge {
+  font-size: var(--fs-xs);
+  color: var(--text);
+  background: var(--wash-3);
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s var(--ease);
+}
+#speedBadge:hover {
+  background: var(--wash-4);
+}
+#volumeWrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+#volume {
+  width: 0;
+  opacity: 0;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  transition:
+    width 0.2s var(--ease),
+    opacity 0.2s var(--ease),
+    margin 0.2s var(--ease);
+}
+#volumeWrap:focus-within #volume,
+#volumeWrap:hover #volume {
+  width: 72px;
+  opacity: 1;
+  margin-left: 4px;
+}
+
+/* ---- Chapter segments and SponsorBlock marks on the seek bar ---- */
+
+#seekVisual {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+#seekMarks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  pointer-events: none;
+  transition: height 0.12s var(--ease);
+}
+#seekWrap:focus-within #seekMarks,
+#seekWrap:hover #seekMarks {
+  height: 6px;
+}
+.sbMark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  background: var(--sponsor); /* SponsorBlock's colour for sponsor segments */
+  opacity: 0.95;
+}
+#chapterLabel {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 230px;
+  margin: 0 6px 0 0;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--wash-3);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  animation: fadeIn 0.2s var(--ease);
+}
+#chapterLabel[hidden] {
+  display: none;
+}
+#seekTip {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  z-index: 5;
+  padding: 5px 9px;
+  border-radius: var(--radius-md);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--line);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s var(--ease);
+}
+#seekTip.show {
+  opacity: 1;
+}
+#seekTip small {
+  display: block;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
