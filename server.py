@@ -14,6 +14,10 @@ import sys
 import threading
 from pathlib import Path
 
+# This folder is also the extension, and Chromium refuses to load one that holds a name
+# starting with "_": never write the package's bytecode (__pycache__) here.
+sys.dont_write_bytecode = True
+
 REQUIREMENTS = Path(__file__).resolve().parent / "requirements.txt"
 
 
