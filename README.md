@@ -80,13 +80,13 @@ browser); everything after that is the same.
      `.deb` downloads, or Debian's `chromium` package. Ubuntu's `chromium` is a Snap.
 
 3. **Load the extension:** open `chrome://extensions`, switch on *Developer mode*, click
-   *Load unpacked* and pick this folder. Copy the extension ID shown on its card.
+   *Load unpacked* and pick this folder. Its ID is always
+   `bnenkakahnieeabjicmgndndommgehje`, on every machine.
 
-4. **Run the installer** with that ID (or paste it into `EXTENSION_ID` at the top of
-   `install.sh` and double-click the file):
+4. **Run the installer** (or double-click `install.sh`):
 
    ```bash
-   ./install.sh <extension-id>
+   ./install.sh
    ```
 
    It lets the extension start the server by itself, and adds **MinimalTube** to your
@@ -95,7 +95,7 @@ browser); everything after that is the same.
 5. **Reload the extension** on `chrome://extensions` and start MinimalTube from the
    application menu. The first start shows a short tour, then the keyboard shortcuts.
 
-Run `./install.sh` again if you move this folder or the extension's ID changes.
+Run `./install.sh` again if you move this folder.
 
 ## Using it
 
@@ -165,4 +165,4 @@ pkill -f "server.py --host 127.0.0.1 --port 7860"
 - `server.py` + `minimaltube/`: the server (its Python packages are in `requirements.txt`).
   See `minimaltube/README.md`.
 - `minimaltube_host.py` + `install.sh`: the native messaging host that starts the server,
-  and its installer(for Linux).
+  and its installer (for Linux).

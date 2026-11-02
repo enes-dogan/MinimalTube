@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # MinimalTube installer. Double-click it (or run ./install.sh) once, and again if
-# you move this folder or the extension gets a different ID.
+# you move this folder.
 #
-# >>> Paste your extension ID between the quotes below. <<<
-# It is shown on the extension's card at chrome://extensions (Developer mode on).
-EXTENSION_ID="najlipoidlccffplgbdpgphoofloojkp"
-#
-# (You can also pass IDs on the command line: ./install.sh <id> [<id> ...])
+# MinimalTube's extension ID follows from the "key" in manifest.json, so it's the same on
+# every machine and there is nothing to fill in. (A copy without that key gets a different
+# ID: pass it on the command line, ./install.sh <id> [<id> ...].)
 #
 # What it does:
 #   1. registers minimaltube_host.py as a native messaging host, so the extension can
@@ -42,8 +40,22 @@ HOST_NAME="com.minimaltube.host"
 chmod +x "$HOST_PATH"
 
 # ---- extension IDs -----------------------------------------------------------
+# The ID Chrome gives an extension with a "key": the SHA-256 of that public key, its first
+# 32 hex digits written with the letters a-p.
+manifest_id() {
+  python3 - "$DIR/manifest.json" <<'PY' 2>/dev/null || true
+import base64, hashlib, json, sys
+key = json.load(open(sys.argv[1])).get("key")
+if key:
+    digest = hashlib.sha256(base64.b64decode(key)).hexdigest()[:32]
+    print(digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop")))
+PY
+}
 IDS=("$@")
-[ -n "${EXTENSION_ID:-}" ] && IDS+=("$EXTENSION_ID")
+if [ "${#IDS[@]}" -eq 0 ]; then
+  KEY_ID="$(manifest_id)"
+  [ -n "$KEY_ID" ] && IDS=("$KEY_ID")
+fi
 if [ "${#IDS[@]}" -eq 0 ] && [ -t 0 ]; then
   echo "Open chrome://extensions, enable Developer mode and copy the ID of MinimalTube."
   read -rp "Extension ID: " typed
@@ -56,11 +68,12 @@ for id in "${IDS[@]}"; do
   fi
 done
 if [ "${#IDS[@]}" -eq 0 ]; then
-  echo "Error: no extension ID given. Paste your ID into EXTENSION_ID at the top of install.sh" >&2
-  echo "       (or pass it: ./install.sh <id>) and run it again." >&2
+  echo "Error: no extension ID: manifest.json has no \"key\". Pass the ID shown at" >&2
+  echo "       chrome://extensions: ./install.sh <id>" >&2
   exit 1
 fi
-APP_ID="${IDS[0]}"   # the user's own extension ID (used for the Start-menu shortcut)
+APP_ID="${IDS[0]}"   # used for the application-menu entry
+echo "Extension ID: $APP_ID"
 
 ORIGINS=""
 for id in "${IDS[@]}"; do
