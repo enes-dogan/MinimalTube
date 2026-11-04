@@ -3,7 +3,6 @@
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
 const DEFAULT_SERVER = "http://127.0.0.1:7860",
-  SPONSORBLOCK_API = "https://sponsor.ajay.app/api/skipSegments",
   video = document.getElementById("video"),
   placeholder = document.getElementById("placeholder"),
   loadingBox = document.getElementById("loading"),
@@ -24,6 +23,7 @@ const DEFAULT_SERVER = "http://127.0.0.1:7860",
   fullscreenBtn = document.getElementById("fullscreen"),
   playerFrame = document.getElementById("playerFrame"),
   openFolderBtn = document.getElementById("openFolderBtn"),
+  restartServerBtn = document.getElementById("restartServerBtn"),
   queueToggleBtn = document.getElementById("plToggle"),
   prevBtn = document.getElementById("prevBtn"),
   nextBtn = document.getElementById("nextBtn"),
@@ -194,25 +194,12 @@ async function loadSponsorSegments(videoId) {
   sponsorSegments = [];
   if (videoId && sponsorBlockEnabled)
     try {
-      const params = new URLSearchParams({
-          videoID: videoId,
-          categories: JSON.stringify(["sponsor"]),
-        }),
-        response = await fetch(`${SPONSORBLOCK_API}?${params.toString()}`);
-      if (response.status === 404) return;
-      if (!response.ok) return;
-      const data = await response.json();
-      if (!Array.isArray(data)) return;
-      sponsorSegments = data
-        .filter((a) => a.category === "sponsor" && Array.isArray(a.segment))
-        .map((el) => ({
-          start: el.segment[0],
-          end: el.segment[1],
-        }))
-        .sort((a, b) => a.start - b.start);
+      // through the server: it keeps a download's segments, so they're there offline too
+      const { segments } = await api(`/sponsorblock/${encodeURIComponent(videoId)}`);
+      if (videoId !== currentVideoId || !Array.isArray(segments)) return;
+      sponsorSegments = segments;
       renderSeekMarks();
     } catch (err) {
-      sponsorSegments = [];
       logQuiet("SponsorBlock", err);
     }
 }
@@ -246,7 +233,7 @@ async function readServerJson(res) {
     throw new Error(
       data.error ||
         (res.status === 404 || res.status === 405
-          ? "the running server is outdated - restart server.py"
+          ? "the running server is outdated - restart it (Settings → Restart server)"
           : `Server returned ${res.status}`),
     );
   return data;
@@ -262,9 +249,24 @@ async function api(path, { method = "GET", body, keepalive } = {}) {
   return readServerJson(res);
 }
 async function requestDownloads(ids, items) {
-  const data = await api("/queue", { method: "POST", body: { ids, titles: titlesFor(items) } });
+  const data = await api("/queue", {
+    method: "POST",
+    body: { ids, titles: titlesFor(items), sponsorblock: sponsorBlockEnabled },
+  });
   pollDownloadsSoon();
   return data;
+}
+/**
+ * The /prepare request for a video, carrying the settings the server acts on: Stream only, and
+ * SponsorBlock (a download then keeps the video's sponsor segments for offline playback).
+ * @param {string} url The video's YouTube URL.
+ * @param {boolean} [streamOnly] Stream without downloading; defaults to the Stream only setting.
+ * @returns {string} The path to pass to api().
+ */
+function preparePath(url, streamOnly = streamOnlyMode()) {
+  return `/prepare?url=${encodeURIComponent(url)}${streamOnly ? "&stream_only=1" : ""}${
+    sponsorBlockEnabled ? "&sponsorblock=1" : ""
+  }`;
 }
 function restartAnimation(node, ...classes) {
   node.classList.remove(...classes);

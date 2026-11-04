@@ -234,7 +234,7 @@ async function deferSwitch(url) {
   pendingSwitch = null;
   let job;
   try {
-    job = await api(`/prepare?url=${encodeURIComponent(url)}`);
+    job = await api(preparePath(url, false));
   } catch (err) {
     if (token !== pendingToken) return true;
     notify(`Couldn't start the download: ${netMessage(firstLine(err.message))}`, true, 4000);

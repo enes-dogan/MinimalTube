@@ -67,7 +67,8 @@
   outline: 0;
   border-color: var(--accent);
 }
-#openFolderBtn {
+#openFolderBtn,
+#restartServerBtn {
   margin-bottom: 8px;
 }
 #settingsPanel .checkrow {

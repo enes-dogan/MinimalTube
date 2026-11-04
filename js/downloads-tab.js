@@ -236,17 +236,22 @@ const syncBpButtons = () => {
 );
 byId("placeholderBrowse").addEventListener("click", () => enterBrowse());
 
+/**
+ * Loads again what the page shows from the server (saved playlists, Downloads, download
+ * progress, the Subscriptions feed when it's open): for a server that has just (re)started.
+ */
+function reloadFromServer() {
+  loadSavedPlaylists();
+  refreshLibrary();
+  pollDownloadsSoon();
+  if (document.body.classList.contains("browsing") && browseTab === "subs")
+    loadSubscriptions().then(() => showFeed());
+}
 // Opened straight from the app menu, the server may not be running yet: the extension starts it
 // (native host), and what loaded before it answered loads again.
 chrome.runtime.sendMessage({ type: "minimaltube-ensure-server" }, (res) => {
   if (chrome.runtime.lastError || !res || !res.started) return;
-  whenLoaded(() => {
-    loadSavedPlaylists();
-    refreshLibrary();
-    pollDownloadsSoon();
-    if (document.body.classList.contains("browsing") && browseTab === "subs")
-      loadSubscriptions().then(() => showFeed());
-  });
+  whenLoaded(reloadFromServer);
 });
 
 // Default page: Subscriptions - unless a video is being opened (from YouTube / the popup).

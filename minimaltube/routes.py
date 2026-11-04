@@ -1,8 +1,10 @@
 """MinimalTube server - routes."""
 import json
+import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -17,6 +19,7 @@ from . import store
 from .config import (
     CACHE_DIR,
     CHANNEL_ID_RE,
+    EXTENSION_ORIGIN_RE,
     FEED_KINDS,
     MAX_DURATION_LOOKUPS,
     PLAYLIST_ID_RE,
@@ -34,6 +37,7 @@ from .downloads import (
     jobs,
     jobs_lock,
     list_library,
+    remember_running_downloads,
 )
 from .feed import (
     build_feed,
@@ -51,12 +55,14 @@ from .media import (
     cached_meta,
     cached_path,
     cached_release_date,
+    cached_sponsor_segments,
     chapters_path,
     clean_chapters,
     description_path,
     duration_failed,
     duration_pending,
     duration_pool,
+    fetch_sponsor_segments,
     mark_thumbnail_used,
     meta_public,
     probe_duration,
@@ -64,6 +70,7 @@ from .media import (
     remember_description,
     remember_meta,
     remember_release_date,
+    remember_sponsor_segments,
     remember_thumbnail,
     remove_video_files,
     subtitle_path,
@@ -104,7 +111,18 @@ from .subtitles import (
 )
 
 app = Flask(__name__)
-CORS(app, expose_headers=[NET_HEADER])
+CORS(app, origins=[EXTENSION_ORIGIN_RE], expose_headers=[NET_HEADER])
+STARTED = time.time()
+
+
+@app.before_request
+def only_the_extension():
+    # CORS headers only keep other pages from reading the answers; this also refuses what those
+    # pages may send without asking first (simple POSTs, fetch() GETs). Requests without an
+    # Origin (curl, a link, an <img>) still get through.
+    origin = request.headers.get("Origin")
+    if origin and not EXTENSION_ORIGIN_RE.match(origin):
+        return jsonify({"error": "only the MinimalTube extension can use this server"}), 403
 
 
 @app.after_request
@@ -176,7 +194,8 @@ def prepare():
         if cached_path(video_id).exists():
             jobs[video_id] = {"status": "ready", "percent": 100, "title": title}
         elif needs_start:
-            jobs[video_id] = {"status": "downloading", "percent": 0, "title": title}
+            jobs[video_id] = {"status": "downloading", "percent": 0, "title": title,
+                              "sponsorblock": request.args.get("sponsorblock") == "1"}
             with cancelled_lock:
                 cancelled.discard(video_id)
 
@@ -348,7 +367,8 @@ def queue_downloads():
             existing = jobs.get(video_id)
             if existing and existing.get("status") in ACTIVE_STATUSES:
                 continue
-            jobs[video_id] = {"status": "queued", "percent": 0}
+            jobs[video_id] = {"status": "queued", "percent": 0,
+                              "sponsorblock": data.get("sponsorblock") is True}
         with cancelled_lock:
             cancelled.discard(video_id)
         download_queue.put(video_id)
@@ -804,6 +824,23 @@ def chapters(video_id):
     remember_release_date(video_id, info)
     return jsonify({"chapters": clean_chapters(info.get("chapters"), info.get("duration"))})
 
+@app.route("/sponsorblock/<video_id>")
+def sponsorblock(video_id):
+    """Sponsor segments: SponsorBlock's current ones while online, else the ones kept with the
+    download."""
+    if not VIDEO_ID_RE.match(video_id):
+        return jsonify({"error": "invalid video id"}), 400
+    if is_online():
+        try:
+            segments = fetch_sponsor_segments(video_id)
+        except (OSError, ValueError):
+            internet_up()  # a failed fetch may be a lost connection
+        else:
+            if cached_path(video_id).exists() or get_job(video_id).get("status") in ACTIVE_STATUSES:
+                remember_sponsor_segments(video_id, segments)
+            return jsonify({"segments": segments})
+    return jsonify({"segments": cached_sponsor_segments(video_id) or []})
+
 @app.route("/open-folder")
 def open_folder():
     """Open the folder where downloaded videos are kept in the file manager."""
@@ -822,6 +859,21 @@ def open_folder():
         return jsonify({"error": str(e)}), 500
     return jsonify({"status": "ok", "path": str(CACHE_DIR)})
 
+@app.route("/restart", methods=["POST"])
+def restart():
+    """Run the server again (new code, a new yt-dlp); the running downloads continue."""
+    remember_running_downloads()
+    threading.Timer(0.5, restart_server).start()  # once this answer is out
+    return jsonify({"status": "restarting", "started": STARTED})
+
+def restart_server():
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # POSIX replaces the process in place: same PID, same terminal or log. Windows has no real
+    # exec (os.execv starts a new process and ends this one), so there the new server will have
+    # to be started once this one has let go of the port.
+    os.execv(sys.executable, getattr(sys, "orig_argv", None) or [sys.executable, "-u", *sys.argv])
+
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "started": STARTED})

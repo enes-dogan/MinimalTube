@@ -7,11 +7,12 @@ import shutil
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from .config import (
     CACHE_DIR,
@@ -277,6 +278,70 @@ def remember_chapters(video_id: str, info: dict):
                                 ensure_ascii=False), encoding="utf-8")
     except OSError as e:
         print(f"[chapters] couldn't save {p.name}: {e}")
+
+SPONSORBLOCK_API = "https://sponsor.ajay.app/api/skipSegments"
+
+def sponsor_path(video_id: str) -> Path:
+    return CACHE_DIR / f"{video_id}.sponsor.json"
+
+def fetch_sponsor_segments(video_id: str) -> list:
+    """Ask SponsorBlock for a video's "sponsor" segments.
+
+    Args:
+        video_id (str): An 11-character YouTube video id.
+
+    Returns:
+        list[dict]: [{"start": seconds, "end": seconds}, ...] sorted by start; [] when the
+        video has none (SponsorBlock answers 404 for that).
+
+    Raises:
+        OSError: SponsorBlock couldn't be reached or answered with another error
+            (urllib's URLError / HTTPError are OSErrors).
+        ValueError: The answer wasn't JSON.
+    """
+    query = urlencode({"videoID": video_id, "categories": '["sponsor"]'})
+    req = urllib.request.Request(f"{SPONSORBLOCK_API}?{query}", headers={"User-Agent": "MinimalTube"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return []
+        raise
+    segments = []
+    for entry in data if isinstance(data, list) else []:
+        if not isinstance(entry, dict) or entry.get("category") != "sponsor":
+            continue
+        span = entry.get("segment")
+        if not isinstance(span, list) or len(span) != 2:
+            continue
+        try:
+            start, end = float(span[0]), float(span[1])
+        except (TypeError, ValueError):
+            continue
+        if 0 <= start < end:
+            segments.append({"start": start, "end": end})
+    return sorted(segments, key=lambda s: s["start"])
+
+def remember_sponsor_segments(video_id: str, segments: list):
+    """Keep a video's sponsor segments on disk, so skipping them works offline. The file is
+    one of the video's files, so it goes with the download (remove_video_files).
+
+    Args:
+        video_id (str): An 11-character YouTube video id.
+        segments (list[dict]): What fetch_sponsor_segments returned ([] is kept too: "none").
+    """
+    try:
+        sponsor_path(video_id).write_text(json.dumps(segments), encoding="utf-8")
+    except OSError as e:
+        print(f"[sponsorblock] couldn't save {sponsor_path(video_id).name}: {e}")
+
+def cached_sponsor_segments(video_id: str):
+    try:
+        data = json.loads(sponsor_path(video_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, list) else None
 
 def cache_files():
     return list(CACHE_DIR.glob("*.mp4"))

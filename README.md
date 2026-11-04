@@ -30,7 +30,8 @@ to fetch, download and stream videos. No YouTube page ever loads.
   playing, every thumbnail you've seen keeps showing, and everything (the feed, downloads,
   history and playlist syncs) catches up by itself when the connection is back.
 - **Made for the keyboard.** Every list works with Tab, the arrow keys and Enter; every ⋮
-  menu has letter shortcut keys. Press the **i** in Settings for all shortcuts.
+  menu has letter shortcut keys. Press the **i** in Settings for all shortcuts. Media keys
+  and your system's media controls work too.
 
 ## Install (Linux)
 
@@ -111,7 +112,8 @@ Run `./install.sh` again if you move this folder.
 
 | What | Where |
 |---|---|
-| Downloads, thumbnails, captions, playlists, subscriptions | `~/.cache/minimaltube/` |
+| Downloads, thumbnails, captions | `~/.cache/minimaltube/` |
+| Playlists, subscriptions, the order of your downloads | `~/.local/share/minimaltube/` |
 | Server log | `~/.cache/minimaltube/server.log` |
 | Settings, queue, watch progress, the feed's memory | the browser's extension storage |
 | The application-menu entry | `~/.local/share/applications/minimaltube.desktop` |
@@ -130,8 +132,8 @@ YouTube changes often, so keep yt-dlp current:
   (and `deno upgrade` now and then)
 
 After pulling new code, reload the extension on `chrome://extensions`. After updating
-yt-dlp or anything in the server, restart the server so it runs the new code; the next
-MinimalTube window starts it again:
+yt-dlp or anything in the server, restart the server so it runs the new code: Settings →
+**Restart server**. Or stop it by hand; the next MinimalTube window starts it again:
 
 ```bash
 pkill -f "server.py --host 127.0.0.1 --port 7860"

@@ -1,9 +1,49 @@
 """MinimalTube server - config."""
+import base64
+import hashlib
+import json
+import os
 import re
+import shutil
+import sys
 from pathlib import Path
 
 CACHE_DIR = Path.home() / ".cache" / "minimaltube"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _data_dir() -> Path:
+    if sys.platform == "win32":
+        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "MinimalTube"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "MinimalTube"
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "minimaltube"
+
+
+# What the user made (playlists, subscriptions, the Downloads order) is kept apart from the cache,
+# which cache cleaners empty.
+DATA_DIR = _data_dir()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+for _name in ("playlists.json", "subscriptions.json", "order.json"):  # older versions kept them in the cache
+    if (CACHE_DIR / _name).exists() and not (DATA_DIR / _name).exists():
+        shutil.move(CACHE_DIR / _name, DATA_DIR / _name)
+
+
+def _extension_origin_re():
+    # The id Chrome gives an extension with a "key" (install.sh works it out the same way): the
+    # SHA-256 of the key, its first 32 hex digits written with the letters a-p.
+    try:
+        manifest = json.loads((Path(__file__).resolve().parent.parent / "manifest.json")
+                              .read_text(encoding="utf-8"))
+        digest = hashlib.sha256(base64.b64decode(manifest["key"])).hexdigest()[:32]
+    except (OSError, ValueError, KeyError, TypeError):
+        return re.compile(r"chrome-extension://[a-p]{32}$")  # no key: Chrome picks the id, so any extension
+    ext_id = digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop"))
+    return re.compile(f"chrome-extension://{ext_id}$")
+
+
+# The only browser origin the server answers (its CORS headers and the Origin check in routes).
+EXTENSION_ORIGIN_RE = _extension_origin_re()
 
 CACHE_MAX_AGE_DAYS = 60
 

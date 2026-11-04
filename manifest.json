@@ -13,7 +13,6 @@
     "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
-    "https://sponsor.ajay.app/*",
     "https://www.youtube.com/*",
     "https://s.youtube.com/*",
     "http://127.0.0.1/*",

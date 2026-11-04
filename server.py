@@ -62,7 +62,7 @@ def main():
         CACHE_MAX_BYTES,
         MAX_PARALLEL_DOWNLOADS,
     )
-    from minimaltube.downloads import download_worker
+    from minimaltube.downloads import download_worker, resume_running_downloads
     from minimaltube.media import cache_maintenance_loop, run_cache_maintenance
     from minimaltube.routes import app
 
@@ -71,6 +71,7 @@ def main():
 
     for _ in range(MAX_PARALLEL_DOWNLOADS):
         threading.Thread(target=download_worker, daemon=True).start()
+    resume_running_downloads()
 
     print(f"MinimalTube server running at http://{args.host}:{args.port}")
     print(

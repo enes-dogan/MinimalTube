@@ -9,14 +9,18 @@ import yt_dlp
 from . import store
 from .config import CACHE_DIR, FORMAT_SELECTOR, VIDEO_ID_RE
 from .media import (
+    cached_path,
     enforce_cache_size_limit,
+    fetch_sponsor_segments,
     probe_duration,
     remember_chapters,
     remember_description,
     remember_meta,
     remember_release_date,
+    remember_sponsor_segments,
     remember_thumbnail,
     remove_video_files,
+    sponsor_path,
 )
 from .net import internet_up, on_online
 from .store import remember_title, titles
@@ -108,6 +112,13 @@ def download_job(video_id: str, url: str):
         finish_cancel(video_id)
         return
 
+    # "sponsorblock": the player's SponsorBlock setting, sent with the request that started this
+    if get_job(video_id).get("sponsorblock") and not sponsor_path(video_id).exists():
+        try:
+            remember_sponsor_segments(video_id, fetch_sponsor_segments(video_id))
+        except (OSError, ValueError):
+            pass  # asked again whenever it plays online
+
     if not sublang_current(video_id):
         fetch_original_subtitle(video_id, url, info)
 
@@ -124,6 +135,27 @@ def resume_waiting_downloads():
             jobs[vid].update(status="queued", error=None)
     for vid in waiting:
         print(f"[download] back online, resuming {vid}")
+        download_queue.put(vid)
+
+# Downloads that were running when the server restarted itself (POST /restart) continue in the
+# new process, from their .part files.
+def resume_path():
+    return CACHE_DIR / "resume.json"
+
+def remember_running_downloads():
+    with jobs_lock:
+        running = {vid: bool(job.get("sponsorblock")) for vid, job in jobs.items()
+                   if job.get("status") in ACTIVE_STATUSES and VIDEO_ID_RE.match(vid)}
+    store.write_json_atomic(resume_path(), running, "restart")
+
+def resume_running_downloads():
+    running = store.read_json(resume_path(), {})
+    resume_path().unlink(missing_ok=True)
+    for vid, sponsorblock in running.items():
+        if not VIDEO_ID_RE.match(vid) or cached_path(vid).exists():
+            continue
+        with jobs_lock:
+            jobs[vid] = {"status": "queued", "percent": 0, "sponsorblock": sponsorblock is True}
         download_queue.put(vid)
 
 def download_worker():

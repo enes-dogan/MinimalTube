@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from .config import (
     CACHE_DIR,
     CHANNEL_ID_RE,
+    DATA_DIR,
     FEED_KINDS,
     FEED_STEP,
     FEED_TTL,
@@ -38,7 +39,7 @@ from .store import (
 subs_lock = threading.Lock()
 
 def subs_path() -> Path:
-    return CACHE_DIR / "subscriptions.json"
+    return DATA_DIR / "subscriptions.json"
 
 saved_subscriptions = [c for c in read_json(subs_path(), [])
                        if isinstance(c, dict) and CHANNEL_ID_RE.match(str(c.get("id", "")))]

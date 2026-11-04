@@ -88,7 +88,7 @@ function prefetchNextInQueue() {
   const next = queue.items[queueIndex + 1];
   if (!next) return;
   // stream only: just its title and stream links, no download
-  api(`/prepare?url=${encodeURIComponent(next.url)}${streamOnlyMode() ? "&stream_only=1" : ""}`)
+  api(preparePath(next.url))
     .then((response) => {
       if (response && response.status && response.status !== "ready" && response.status !== "streaming")
         pollDownloadsSoon();
@@ -424,6 +424,51 @@ openFolderBtn.addEventListener("click", async () => {
       true,
       4e3,
     );
+  }
+});
+// The server runs itself again in place; it's back once /health reports a new start time. One
+// that isn't running, or doesn't come back, is started by the extension (native host).
+async function restartServer() {
+  let res = null;
+  try {
+    res = await fetch(`${serverBase}/restart`, { method: "POST" });
+  } catch (err) {
+    logQuiet("restart the server", err);
+  }
+  if (res && !res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return notify(
+      res.status === 404 || res.status === 405
+        ? "This server is too old to restart itself: stop it once by hand (README → Updating)."
+        : `Couldn't restart the server: ${data.error || `it returned ${res.status}`}`,
+      true,
+      6e3,
+    );
+  }
+  const old = res ? (await res.json().catch(() => ({}))).started : undefined;
+  for (let i = 0; old !== undefined && i < 60; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const started = await api("/health").then((data) => data.started, () => undefined);
+    if (started !== undefined && started !== old) {
+      notify("Server restarted");
+      return reloadFromServer();
+    }
+  }
+  const reply = await chrome.runtime.sendMessage({ type: "minimaltube-ensure-server" }).catch(() => null);
+  if (!reply || !reply.ok)
+    return notify(firstLine((reply && reply.error) || "Couldn't restart the server"), true, 6e3);
+  notify(old === undefined ? "Server started" : "Server restarted");
+  reloadFromServer();
+}
+restartServerBtn.addEventListener("click", async () => {
+  closeSettings();
+  if (restartServerBtn.disabled) return;
+  restartServerBtn.disabled = true;
+  notify("Restarting the server…", false, 15e3);
+  try {
+    await restartServer();
+  } finally {
+    restartServerBtn.disabled = false;
   }
 });
 addUrlBtn.addEventListener("click", () => {

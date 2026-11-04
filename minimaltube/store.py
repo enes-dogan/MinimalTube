@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 from .config import (
     CACHE_DIR,
+    DATA_DIR,
     ORIGINAL_TITLES_MAX,
     PLAYLIST_ID_RE,
     SHORTS_LIVE_RE,
@@ -121,7 +122,7 @@ def ensure_original_titles(ids, wait: float = 0) -> int:
 order_lock = threading.Lock()
 
 def order_path() -> Path:
-    return CACHE_DIR / "order.json"
+    return DATA_DIR / "order.json"
 
 library_order = [i for i in read_json(order_path(), []) if isinstance(i, str)]
 
@@ -136,7 +137,7 @@ def save_order(ids: list):
 playlists_lock = threading.Lock()
 
 def playlists_path() -> Path:
-    return CACHE_DIR / "playlists.json"
+    return DATA_DIR / "playlists.json"
 
 saved_playlists = [p for p in read_json(playlists_path(), [])
                    if isinstance(p, dict) and PLAYLIST_ID_RE.match(str(p.get("id", "")))

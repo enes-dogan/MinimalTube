@@ -54,9 +54,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
   captionsBtn.classList.remove("active");
   clearSubtitles();
   try {
-    let job = await api(
-      `/prepare?url=${encodeURIComponent(rawUrl)}${streamOnlyMode() ? "&stream_only=1" : ""}`,
-    );
+    let job = await api(preparePath(rawUrl));
     if (stale()) return;
     const videoId = job.video_id;
     currentVideoId = videoId;
@@ -66,6 +64,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
     titleOverlay.textContent = job.title || "";
     titleOverlay.classList.toggle("visible", !!job.title);
     syncQueueTitle(rawUrl, job.title);
+    setMediaSession(videoId, job.title);
     loadSponsorSegments(videoId);
     loadChapters(videoId);
     if (job.status === "streaming") {
@@ -74,7 +73,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
       if (picks && (await startLiveStream(videoId, picks, job, stale))) return;
       if (stale()) return;
       notify("This video can't be streamed here, so it's downloading instead.", true, 4000);
-      job = await api(`/prepare?url=${encodeURIComponent(rawUrl)}`);
+      job = await api(preparePath(rawUrl, false));
       if (stale()) return;
       job.stream = null;
     }
@@ -204,9 +203,7 @@ async function restartStream(videoId, stream, err) {
   setDlWait(true);
   try {
     if (again) throw new Error(firstLine(String((err && err.message) || err)));
-    const job = await api(
-      `/prepare?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&stream_only=1`,
-    );
+    const job = await api(preparePath(`https://www.youtube.com/watch?v=${videoId}`, true));
     if (stale()) return;
     const picks = job.status === "streaming" && LiveStream.pick(job.stream, { adaptive: true });
     if (!picks || !(await startLiveStream(videoId, picks, job, stale, at)))
@@ -441,7 +438,7 @@ async function addUrlToQueue(rawUrl) {
       },
     ]);
     try {
-      const data = await api(`/prepare?url=${encodeURIComponent(rawUrl)}`),
+      const data = await api(preparePath(rawUrl, false)),
         item = queue && queue.items[t];
       if (item && item.url === rawUrl) {
         item.id = data.video_id;
@@ -652,3 +649,26 @@ function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();
   else playerFrame.requestFullscreen();
 }
+function setMediaSession(videoId, title) {
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: title || "MinimalTube",
+    artwork: [{ src: `${serverBase}/thumb/${videoId}`, sizes: "320x180", type: "image/jpeg" }],
+  });
+  api(`/channel-of/${encodeURIComponent(videoId)}`)
+    .then((meta) => {
+      const metadata = navigator.mediaSession.metadata;
+      if (videoId === currentVideoId && meta.channel && metadata) metadata.artist = meta.channel;
+    })
+    .catch((err) => logQuiet("media session", err));
+}
+const mediaSeek = (seconds) => {
+  video.currentTime = Math.min(Math.max(0, video.currentTime + seconds), video.duration || Infinity);
+};
+navigator.mediaSession.setActionHandler("previoustrack", () => skipVideo(-1));
+navigator.mediaSession.setActionHandler("nexttrack", () => skipVideo(1));
+// 5 s steps, as the arrow keys take, when the system doesn't say how far
+navigator.mediaSession.setActionHandler("seekbackward", (details) => mediaSeek(-(details.seekOffset || 5)));
+navigator.mediaSession.setActionHandler("seekforward", (details) => mediaSeek(details.seekOffset || 5));
+navigator.mediaSession.setActionHandler("seekto", (details) => {
+  video.currentTime = details.seekTime;
+});
