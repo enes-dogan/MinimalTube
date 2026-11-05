@@ -2,6 +2,7 @@
 
 config    paths, limits and the regexes shared by everything else
 ytinfo    the one place that runs yt-dlp: full and light lookups of a video
+ytdlp_copy MinimalTube's own yt-dlp (pip, in the data folder) and its updates
 net       the connection state (can YouTube be reached?)
 store     the JSON files in the cache dir: titles, order, playlists
 media     one video's files: mp4, thumbnail, description, chapters, meta

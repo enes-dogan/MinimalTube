@@ -1,12 +1,15 @@
 # The MinimalTube server package
 
-`server.py` next to this folder is only an entry point: it checks that flask,
-flask-cors, yt-dlp and ffmpeg are present (and stops with an install hint if one
-is missing), starts the cache-maintenance and download worker threads, and serves
+`server.py` next to this folder is only an entry point: it puts MinimalTube's own
+yt-dlp first on the import path (`ytdlp_copy`; the system-wide one is the fallback),
+checks that flask, flask-cors, yt-dlp and ffmpeg are present (and stops with an install
+hint if one is missing), starts the cache-maintenance and download worker threads, and serves
 the app with waitress (16 threads, so streams and polls don't wait for each other).
 Without waitress it falls back to Flask's built-in server. Deno isn't checked:
 yt-dlp finds it on the `PATH` by itself. `POST /restart` (Settings → Restart server)
 runs it again in the same process, and the downloads that were running continue.
+`server.py --update-yt-dlp` (run by `install.sh`) and `POST /ytdlp/update` (Settings →
+Update yt-dlp, which then restarts) install the newest yt-dlp as that own copy.
 Everything else lives here.
 
 Imports only go down this list, so there are no cycles:
@@ -14,7 +17,7 @@ Imports only go down this list, so there are no cycles:
 | Module | Imports from the package |
 |---|---|
 | `config`, `net`, `sublang`, `live` | nothing |
-| `ytinfo` | config |
+| `ytinfo`, `ytdlp_copy` | config |
 | `media` | config, ytinfo |
 | `store` | config, media, ytinfo |
 | `subtitles` | config, media, sublang, ytinfo |
@@ -26,6 +29,7 @@ Imports only go down this list, so there are no cycles:
 |---|---|
 | `config.py` | `CACHE_DIR`, `DATA_DIR` (what the user made, kept apart from the cache), the cache limits, the yt-dlp format selector, the extension's origin, and the id/regex constants everything shares. |
 | `ytinfo.py` | The one place that runs yt-dlp: `ydl(**opts)` (quiet defaults), `video_info()` (a full lookup of one video, kept for a few minutes; simultaneous requests for the same video share one lookup) and `video_meta()` (title, upload time and length only, from YouTube's player API: about 0.2 s, for the feed's bulk lookups). |
+| `ytdlp_copy.py` | MinimalTube's own yt-dlp: pip installs every version into a folder of its own in the data folder (`--target`, no sudo) and `yt-dlp.json` names the one to use, so an update never touches the running copy; `use_own_copy()` puts it on `sys.path` at start, before anything imports yt-dlp. |
 | `net.py` | The app-wide connection state: `internet_up()` (a cached probe of YouTube), `is_online()`, `on_online()` callbacks; a watcher re-checks while offline. Every response carries it as `X-MinimalTube-Net`. |
 | `store.py` | The JSON files: `titles.json`, `original_titles.json` (cache dir), `order.json`, `playlists.json` (data dir). `write_json_atomic` is the single temp-file-then-rename writer and `read_json` the single tolerant reader they all use. |
 | `media.py` | One video's files: the mp4, thumbnail, description, release date, chapters, meta, SponsorBlock segments, plus duration probing and the cache-expiry sweep. |

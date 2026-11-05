@@ -6,6 +6,7 @@ the MinimalTube extension. The code lives in the `minimaltube` package next to
 this file; see its docstring for what each module covers.
 
     python3 server.py [--host 127.0.0.1] [--port 7860]
+    python3 server.py --update-yt-dlp     # install the newest yt-dlp as MinimalTube's own copy
 """
 
 import argparse
@@ -30,16 +31,15 @@ def check_dependencies():
             "Missing dependencies. Install with:\n"
             f"  pip install --break-system-packages -r {REQUIREMENTS}\n"
             "or, on CachyOS/Arch:\n"
-            "  sudo pacman -S python-flask python-flask-cors yt-dlp ffmpeg"
+            "  sudo pacman -S python-pip python-flask python-flask-cors python-waitress ffmpeg deno"
         )
     try:
         import yt_dlp  # noqa: F401
     except ImportError:
         sys.exit(
-            "yt-dlp is not installed. Install with:\n"
-            "  sudo pacman -S yt-dlp\n"
-            "or:\n"
-            "  pip install --break-system-packages yt-dlp"
+            "yt-dlp isn't available: MinimalTube has no copy of its own yet, and there's no "
+            "system-wide yt-dlp either.\nWith pip installed, get MinimalTube's copy with:\n"
+            f"  python3 {Path(__file__).resolve()} --update-yt-dlp"
         )
     if shutil.which("ffmpeg") is None:
         sys.exit(
@@ -52,9 +52,24 @@ def main():
     parser = argparse.ArgumentParser(description="MinimalTube local server")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--update-yt-dlp", action="store_true",
+                        help="install the newest yt-dlp as MinimalTube's own copy (used from "
+                             "the server's next start), then exit")
     args = parser.parse_args()
 
+    from minimaltube.ytdlp_copy import install_latest, running_own_copy, use_own_copy
+
+    if args.update_yt_dlp:
+        try:
+            version = install_latest()
+        except RuntimeError as e:
+            sys.exit(f"Couldn't install yt-dlp: {e}")
+        print(f"Installed yt-dlp {version} as MinimalTube's own copy (used from the server's next start).")
+        return
+
+    use_own_copy()
     check_dependencies()
+    from yt_dlp.version import __version__ as ytdlp_version
 
     from minimaltube.config import (
         CACHE_DIR,
@@ -74,6 +89,8 @@ def main():
     resume_running_downloads()
 
     print(f"MinimalTube server running at http://{args.host}:{args.port}")
+    source = "MinimalTube's own copy" if running_own_copy() else "system-wide"
+    print(f"yt-dlp {ytdlp_version} ({source})")
     print(
         f"Cache directory: {CACHE_DIR} (auto-expires after {CACHE_MAX_AGE_DAYS}d, "
         f"capped at {CACHE_MAX_BYTES // (1024**3)}GB)"

@@ -68,7 +68,8 @@
   border-color: var(--accent);
 }
 #openFolderBtn,
-#restartServerBtn {
+#restartServerBtn,
+#updateYtdlpBtn {
   margin-bottom: 8px;
 }
 #settingsPanel .checkrow {

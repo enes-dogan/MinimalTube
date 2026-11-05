@@ -43,7 +43,7 @@ browser); everything after that is the same.
    **Arch-based** (Arch, CachyOS, EndeavourOS, Manjaro):
 
    ```bash
-   sudo pacman -S python python-flask python-flask-cors python-waitress yt-dlp ffmpeg deno
+   sudo pacman -S python python-pip python-flask python-flask-cors python-waitress ffmpeg deno
    ```
 
    **Debian-based** (Debian 12, Ubuntu 24.04 or newer, and the distributions built on them,
@@ -51,14 +51,6 @@ browser); everything after that is the same.
 
    ```bash
    sudo apt install python3 python3-pip python3-flask python3-flask-cors python3-waitress ffmpeg curl unzip
-   ```
-
-   The yt-dlp in apt is usually too old for YouTube, so get the current one from pip
-   (`[default]` brings the part that solves YouTube's player challenges). `--user` keeps it
-   in your home folder; `--break-system-packages` is how pip allows that on these systems:
-
-   ```bash
-   pip install --user --break-system-packages -U "yt-dlp[default]"
    ```
 
    Deno isn't in the Debian / Ubuntu repositories. Its own installer, pointed at
@@ -71,6 +63,11 @@ browser); everything after that is the same.
    On both: the server runs on waitress (`python-waitress` / `python3-waitress`), which
    keeps long streams steady; without it, it falls back to Flask's built-in server. yt-dlp
    uses Deno to solve YouTube's player challenges.
+
+   yt-dlp itself comes from pip: the installer (step 4) puts MinimalTube's own copy in
+   `~/.local/share/minimaltube/`, and Settings → **Update yt-dlp** keeps it current without
+   sudo. A yt-dlp installed system-wide is used only when that copy is missing; with neither,
+   the server stops and says how to get it.
 
 2. **A Chromium-based browser**, installed as a normal package, not as a Flatpak or Snap:
    their sandbox stops the extension from starting the server.
@@ -90,8 +87,8 @@ browser); everything after that is the same.
    ./install.sh
    ```
 
-   It lets the extension start the server by itself, and adds **MinimalTube** to your
-   application menu.
+   It installs MinimalTube's own yt-dlp, lets the extension start the server by itself, and
+   adds **MinimalTube** to your application menu.
 
 5. **Reload the extension** on `chrome://extensions` and start MinimalTube from the
    application menu. The first start shows a short tour, then the keyboard shortcuts.
@@ -113,7 +110,7 @@ Run `./install.sh` again if you move this folder.
 | What | Where |
 |---|---|
 | Downloads, thumbnails, captions | `~/.cache/minimaltube/` |
-| Playlists, subscriptions, the order of your downloads | `~/.local/share/minimaltube/` |
+| Playlists, subscriptions, the order of your downloads, MinimalTube's own yt-dlp | `~/.local/share/minimaltube/` |
 | Server log | `~/.cache/minimaltube/server.log` |
 | Settings, queue, watch progress, the feed's memory | the browser's extension storage |
 | The application-menu entry | `~/.local/share/applications/minimaltube.desktop` |
@@ -125,15 +122,13 @@ under 64 GB (`minimaltube/config.py`).
 
 ## Updating (Linux)
 
-YouTube changes often, so keep yt-dlp current:
+YouTube changes often, so keep yt-dlp current: Settings → **Update yt-dlp** installs the
+newest one (no sudo) and restarts the server. The rest updates with your system
+(`sudo pacman -Syu` / `sudo apt upgrade`; on Debian-based, `deno upgrade` now and then).
 
-- **Arch-based:** `sudo pacman -Syu`
-- **Debian-based:** `pip install --user --break-system-packages -U "yt-dlp[default]"`
-  (and `deno upgrade` now and then)
-
-After pulling new code, reload the extension on `chrome://extensions`. After updating
-yt-dlp or anything in the server, restart the server so it runs the new code: Settings →
-**Restart server**. Or stop it by hand; the next MinimalTube window starts it again:
+After pulling new code, reload the extension on `chrome://extensions` and restart the server
+so it runs the new code: Settings → **Restart server**. Or stop it by hand; the next
+MinimalTube window starts it again:
 
 ```bash
 pkill -f "server.py --host 127.0.0.1 --port 7860"
@@ -153,8 +148,7 @@ pkill -f "server.py --host 127.0.0.1 --port 7860"
 - **Nothing happens from the application menu, or the server never starts:** Check the
   extensions ID. Copy it from `chrome://extensions` and run
   `./install.sh <extension-id>` again. A Flatpak or Snap browser can't start the server.
-- **A video won't play:** yt-dlp is probably out of date: update it (see *Updating*) and
-  restart the server.
+- **A video won't play:** yt-dlp is probably out of date: Settings → **Update yt-dlp**.
 - **Small errors that don't interrupt anything** are logged to the extension console:
   right-click the player → *Inspect* (or *service worker* on `chrome://extensions` for
   the background).

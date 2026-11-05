@@ -82,11 +82,20 @@ done
 
 # ---- sanity checks -----------------------------------------------------------
 [ -f "$DIR/server.py" ] || echo "Warning: server.py not found next to install.sh - auto-start won't work (or set MINIMALTUBE_SERVER)."
-for prog in yt-dlp ffmpeg; do
-  command -v "$prog" >/dev/null || echo "Warning: '$prog' not found in PATH"
-done
-python3 -c "import flask, flask_cors, yt_dlp" 2>/dev/null \
-  || echo "Warning: python3 is missing flask / flask-cors / yt-dlp (needed by server.py)."
+command -v ffmpeg >/dev/null || echo "Warning: 'ffmpeg' not found in PATH"
+python3 -c "import flask, flask_cors" 2>/dev/null \
+  || echo "Warning: python3 is missing flask / flask-cors (needed by server.py)."
+
+# ---- MinimalTube's own yt-dlp ------------------------------------------------
+# pip puts it in MinimalTube's data folder, so updating it (Settings -> Update yt-dlp) never
+# needs sudo; a system-wide yt-dlp is only the fallback.
+if python3 -c "import pip" 2>/dev/null; then
+  echo "Installing MinimalTube's own yt-dlp..."
+  python3 -B "$DIR/server.py" --update-yt-dlp \
+    || echo "Warning: that failed; a system-wide yt-dlp is used if there is one."
+else
+  echo "Warning: pip isn't installed, so MinimalTube can't keep its own yt-dlp (a system-wide one is used if there is one)."
+fi
 
 # ---- native messaging manifest -----------------------------------------------
 MANIFEST=$(cat <<JSON

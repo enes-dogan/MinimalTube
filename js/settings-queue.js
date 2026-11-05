@@ -426,8 +426,26 @@ openFolderBtn.addEventListener("click", async () => {
     );
   }
 });
-// The server runs itself again in place; it's back once /health reports a new start time. One
-// that isn't running, or doesn't come back, is started by the extension (native host).
+// A restarting server runs itself again in place; it's back once /health reports a start time
+// other than `old`. One that isn't running (old undefined), or doesn't come back, is started by
+// the extension (native host). Resolves to whether a server answers now.
+async function serverBack(old) {
+  for (let i = 0; old !== undefined && i < 60; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const started = await api("/health").then((data) => data.started, () => undefined);
+    if (started !== undefined && started !== old) {
+      reloadFromServer();
+      return true;
+    }
+  }
+  const reply = await chrome.runtime.sendMessage({ type: "minimaltube-ensure-server" }).catch(() => null);
+  if (!reply || !reply.ok) {
+    notify(firstLine((reply && reply.error) || "Couldn't restart the server"), true, 6e3);
+    return false;
+  }
+  reloadFromServer();
+  return true;
+}
 async function restartServer() {
   let res = null;
   try {
@@ -446,31 +464,33 @@ async function restartServer() {
     );
   }
   const old = res ? (await res.json().catch(() => ({}))).started : undefined;
-  for (let i = 0; old !== undefined && i < 60; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    const started = await api("/health").then((data) => data.started, () => undefined);
-    if (started !== undefined && started !== old) {
-      notify("Server restarted");
-      return reloadFromServer();
-    }
-  }
-  const reply = await chrome.runtime.sendMessage({ type: "minimaltube-ensure-server" }).catch(() => null);
-  if (!reply || !reply.ok)
-    return notify(firstLine((reply && reply.error) || "Couldn't restart the server"), true, 6e3);
-  notify(old === undefined ? "Server started" : "Server restarted");
-  reloadFromServer();
+  if (await serverBack(old)) notify(old === undefined ? "Server started" : "Server restarted");
 }
-restartServerBtn.addEventListener("click", async () => {
-  closeSettings();
-  if (restartServerBtn.disabled) return;
-  restartServerBtn.disabled = true;
-  notify("Restarting the server…", false, 15e3);
+async function updateYtdlp() {
+  let data;
   try {
-    await restartServer();
-  } finally {
-    restartServerBtn.disabled = false;
+    data = await api("/ytdlp/update", { method: "POST", body: {} });
+  } catch (err) {
+    return notify(`Couldn't update yt-dlp: ${firstLine(err.message)}`, true, 8e3);
   }
-});
+  if (data.status === "current") return notify(`yt-dlp is up to date (${data.version})`, false, 4e3);
+  notify(`yt-dlp ${data.version} installed, restarting the server…`, false, 15e3);
+  if (await serverBack(data.started)) notify(`yt-dlp updated to ${data.version}`, false, 4e3);
+}
+let serverTaskRunning = false;
+async function runServerTask(task, text) {
+  closeSettings();
+  if (serverTaskRunning) return;
+  serverTaskRunning = true;
+  notify(text, false, 120e3);
+  try {
+    await task();
+  } finally {
+    serverTaskRunning = false;
+  }
+}
+restartServerBtn.addEventListener("click", () => runServerTask(restartServer, "Restarting the server…"));
+updateYtdlpBtn.addEventListener("click", () => runServerTask(updateYtdlp, "Updating yt-dlp…"));
 addUrlBtn.addEventListener("click", () => {
   const typed = urlInput.value.trim();
   if (typed) {

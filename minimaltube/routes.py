@@ -109,6 +109,8 @@ from .subtitles import (
     subtitle_backfill_attempted,
     subtitle_backfill_lock,
 )
+from .ytdlp_copy import install_latest, running_own_copy, up_to_date
+
 
 app = Flask(__name__)
 CORS(app, origins=[EXTENSION_ORIGIN_RE], expose_headers=[NET_HEADER])
@@ -862,9 +864,25 @@ def open_folder():
 @app.route("/restart", methods=["POST"])
 def restart():
     """Run the server again (new code, a new yt-dlp); the running downloads continue."""
+    schedule_restart()
+    return jsonify({"status": "restarting", "started": STARTED})
+
+@app.route("/ytdlp/update", methods=["POST"])
+def ytdlp_update():
+    """Install the newest yt-dlp as MinimalTube's own copy (no sudo), then restart to use it."""
+    running = yt_dlp.version.__version__
+    if running_own_copy() and up_to_date(running):
+        return jsonify({"status": "current", "version": running})
+    try:
+        version = install_latest()
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    schedule_restart()
+    return jsonify({"status": "restarting", "started": STARTED, "version": version})
+
+def schedule_restart():
     remember_running_downloads()
     threading.Timer(0.5, restart_server).start()  # once this answer is out
-    return jsonify({"status": "restarting", "started": STARTED})
 
 def restart_server():
     sys.stdout.flush()
