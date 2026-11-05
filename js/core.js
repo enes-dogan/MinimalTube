@@ -129,7 +129,9 @@ let serverBase = DEFAULT_SERVER,
   queueIndex = -1,
   queueAddToken = 0,
   loadToken = 0;
-let playSource = "queue"; // "queue" | "library": which list the current video came from
+// "queue" | "library": which list the current video came from; "detour": played on the side of a
+// queue that is a saved playlist (playVideoNow), which carries on after it
+let playSource = "queue";
 function formatTime(seconds, long = false) {
   const total = isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0,
     pad = (v) => String(v).padStart(2, "0"),

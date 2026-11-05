@@ -134,12 +134,7 @@ function downloadMenuEntries(entry, anchor) {
       onClick: () => playDownload(entry),
     },
     saveToEntry(anchor, videoItem(v)),
-    {
-      label: "Add next to queue",
-      key: "Q",
-      icon: ICON_NEXT,
-      onClick: () => queueVideoNext(v),
-    },
+    addNextEntry(v),
     ...libraryMenuEntries(entry), // Delete / Cancel download
   ];
 }

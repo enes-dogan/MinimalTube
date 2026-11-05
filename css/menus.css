@@ -53,6 +53,24 @@
   opacity: 0.45;
   cursor: default;
 }
+/* an item that can't run right now (refuse in fillMenu): red for a moment, with a shake */
+.rowMenuItem.refused,
+.rowMenuItem.refused:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--danger-fill);
+  animation: refuse 0.3s var(--ease);
+}
+.rowMenuItem.refused .menuKey {
+  color: var(--danger);
+}
+@keyframes refuse {
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
 
 /* ---- Menu for a browse card ---- */
 #bpMenu {

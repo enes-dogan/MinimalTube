@@ -116,7 +116,9 @@ chrome.storage.local.get(
           }
         } else if (n) {
           if (hasSaved) restoreSavedQueue(saved);
-          addUrlToQueue(n);
+          // a video opened from YouTube plays either way: beside a playlist queue, not in it
+          if (queueLockedReason() && !playlistIdFromUrl(n)) playVideoNow({ url: n, title: n });
+          else addUrlToQueue(n);
         } else {
           if (hasSaved) restoreSavedQueue(saved);
           setTimeout(
@@ -167,7 +169,13 @@ function resolveNext() {
       : null;
   }
   if (!queue || queueIndex < 0) return null;
-  const nxt = queue.items[queueIndex + 1];
+  // after a video played on the side of a playlist queue: the playlist goes on where it was left,
+  // with the video that was playing, or the one after it if that one was watched to the end
+  const interrupted = queue.items[queueIndex],
+    nxt =
+      playSource === "detour"
+        ? queue.items[queueIndex + (interrupted && watchDone(itemVideoId(interrupted)) ? 1 : 0)]
+        : queue.items[queueIndex + 1];
   if (!nxt) return null;
   return {
     title: nxt.title || nxt.url,

@@ -225,8 +225,10 @@ function showBpMenu(anchor, entries) {
   placePopup(bpMenu, anchor, null);
 }
 // One renderer for both ⋮ menus (#bpMenu over the page, #rowMenu in the side panel). Entries:
-// {label, icon, key, danger, disabled, dots, keepOpen, cls, onClick} or {separator: true}; a
-// letter key picks an item (menuKeysFor). Returns the timer of animated "…" dots, if any.
+// {label, icon, key, danger, disabled, dots, keepOpen, cls, refuse, onClick} or {separator: true};
+// a letter key picks an item (menuKeysFor). `refuse()` returns why the item can't run right now
+// (or nothing): then the menu stays open and the item turns red. Returns the timer of animated
+// "…" dots, if any.
 function fillMenu(menu, entries, close) {
   menu.innerHTML = "";
   entries = entries.filter(Boolean);
@@ -250,6 +252,8 @@ function fillMenu(menu, entries, close) {
     item.addEventListener("click", (event) => {
       event.stopPropagation();
       if (entry.disabled) return;
+      const refusal = entry.refuse && entry.refuse();
+      if (refusal) return refuseMenuItem(item, refusal);
       if (!entry.keepOpen) close();
       if (entry.onClick) entry.onClick();
     });
@@ -262,6 +266,12 @@ function fillMenu(menu, entries, close) {
     frame = (frame + 1) % DOT_FRAMES.length;
     dotEls.forEach((dots) => (dots.textContent = DOT_FRAMES[frame]));
   }, 450);
+}
+function refuseMenuItem(item, reason) {
+  restartAnimation(item, "refused");
+  clearTimeout(item._refusedTimer);
+  item._refusedTimer = setTimeout(() => item.classList.remove("refused"), 1800);
+  notify(reason, true, 5000);
 }
 // Puts a popup next to the button it belongs to (above it when there's no room below), within
 // `container` or the window; menus opened by right-click appear at the pointer instead.
@@ -364,6 +374,14 @@ const videoItem = (chapter) => ({
 function playVideoNow(v) {
   const item = videoItem(v);
   exitBrowse();
+  if (queueLockedReason()) {
+    // the queue is a saved playlist, so this one plays on the side, outside it; "Up next" then
+    // takes the playlist up where it was left (resolveNext)
+    playSource = "detour";
+    updateSkipButtons();
+    playVideo(item.url);
+    return;
+  }
   if (!queue || !queue.items.length) {
     appendToQueue([item]);
     return;
@@ -382,7 +400,34 @@ function playVideoNow(v) {
   saveQueue();
   playVideo(item.url);
 }
+/**
+ * Why videos can't be added to the queue right now: a queue loaded from a saved playlist is that
+ * playlist (its changes are saved to it), so adding a video there would add it to the playlist.
+ * @returns {string|null} The message to show, or null when adding is fine.
+ */
+function queueLockedReason() {
+  if (!queue || !queue.playlistId || !queue.items.length) return null;
+  const pl = savedPlaylists.find((playlist) => playlist.id === queue.playlistId);
+  return `${pl ? `"${pl.name}"` : "A"} playlist is open. Clear queue first to add videos to it.`;
+}
+/**
+ * The ⋮ menus' "Add next to queue" for a video. While a saved playlist is in the queue it
+ * refuses (queueLockedReason) instead of adding the video to that playlist.
+ * @param {object} video What queueVideoNext takes ({id, title, url, duration}).
+ * @returns {object} A fillMenu entry.
+ */
+function addNextEntry(video) {
+  return {
+    label: "Add next to queue",
+    key: "Q",
+    icon: ICON_NEXT,
+    refuse: queueLockedReason,
+    onClick: () => queueVideoNext(video),
+  };
+}
 function queueVideoNext(chapter) {
+  const locked = queueLockedReason();
+  if (locked) return notify(locked, true, 5000);
   const item = videoItem(chapter);
   if (
     (!queue || !queue.items.length) &&
@@ -442,12 +487,7 @@ async function downloadVideo(item) {
 function videoMenuEntries(v, anchor) {
   return [
     saveToEntry(anchor, videoItem(v), "P"),
-    {
-      label: "Add next to queue",
-      key: "Q",
-      icon: ICON_NEXT,
-      onClick: () => queueVideoNext(v),
-    },
+    addNextEntry(v),
     downloadEntryFor(v),
   ];
 }

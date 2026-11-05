@@ -493,12 +493,7 @@ function libraryMenuEntries(entry, btn) {
         title: entry.title || "",
         url: entry.url || `https://www.youtube.com/watch?v=${entry.id}`,
       }),
-    btn && {
-      label: "Add next to queue",
-      key: "Q",
-      icon: ICON_NEXT,
-      onClick: () => queueVideoNext(downloadVideoObj(entry)),
-    },
+    btn && addNextEntry(downloadVideoObj(entry)),
     channelEntry(entry.id, entry),
     {
       label: isActiveEntry(entry) ? "Cancel download" : "Delete",

@@ -228,6 +228,7 @@ skipLink.addEventListener("click", () => skipTarget()[1].focus());
  * ===================================================================== */
 // Mirror of resolveNext.
 function resolvePrev() {
+  if (playSource === "detour") return resolveNext(); // either way: back to the playlist
   if (playSource === "library") {
     const index = library.findIndex((entry) => entry.id === currentVideoId),
       prev = index > 0 ? library[index - 1] : null;

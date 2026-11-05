@@ -425,6 +425,8 @@ function stripPlaylistParams(rawUrl) {
   }
 }
 async function addUrlToQueue(rawUrl) {
+  const locked = queueLockedReason();
+  if (locked) return notify(locked, true, 5000);
   rawUrl = stripPlaylistParams(rawUrl);
   const token = ++queueAddToken,
     listId = playlistIdFromUrl(rawUrl),

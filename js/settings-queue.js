@@ -330,7 +330,9 @@ function updateSkipButtons() {
     playSource === "queue" && queue && queueIndex >= 0 && currentVideoId;
   prevBtn.style.display = inQueue && queueIndex > 0 ? "" : "none";
   nextBtn.style.display =
-    inQueue && queueIndex < queue.items.length - 1 ? "" : "none";
+    (inQueue && queueIndex < queue.items.length - 1) || (playSource === "detour" && resolveNext())
+      ? ""
+      : "none";
 }
 function markActiveQueueRow() {
   updateSkipButtons();

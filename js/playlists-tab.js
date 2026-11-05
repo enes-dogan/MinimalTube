@@ -363,12 +363,7 @@ function makePlaylistItemCard(pl, item, idx) {
         icon: ICON_PLAY,
         onClick: play,
       },
-      {
-        label: "Add next to queue",
-        key: "Q",
-        icon: ICON_NEXT,
-        onClick: () => queueVideoNext(item),
-      },
+      addNextEntry(item),
       channelEntry(item.id, item),
       downloadEntryFor(item),
       {
