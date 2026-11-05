@@ -347,6 +347,31 @@ browseBody.addEventListener("scroll", closeBpMenu, {
 });
 window.addEventListener("resize", closeBpMenu);
 
+/* ---------- "Back to top": past about five rows of cards, scrolls the page back up ---------- */
+const backToTop = byId("backToTop"),
+  BACK_TO_TOP_ROWS = 5;
+let backToTopFrame = 0;
+function cardRowHeight() {
+  const card = [...browseBody.querySelectorAll(".bpView.active .vCard")].find((c) => c.offsetHeight);
+  if (!card) return 280;
+  return card.offsetHeight + (parseFloat(getComputedStyle(card.parentElement).rowGap) || 0);
+}
+browseBody.addEventListener(
+  "scroll",
+  () => {
+    if (backToTopFrame) return;
+    backToTopFrame = requestAnimationFrame(() => {
+      backToTopFrame = 0;
+      backToTop.classList.toggle("show", browseBody.scrollTop > BACK_TO_TOP_ROWS * cardRowHeight());
+    });
+  },
+  { passive: true },
+);
+backToTop.addEventListener("click", () => {
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  browseBody.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
+});
+
 /* ---------- right-click opens the same menu as the card's / row's ⋮ button ---------- */
 const menuPoint = document.createElement("div");
 menuPoint.style.cssText =

@@ -71,6 +71,10 @@
 body.browsing #toast {
   bottom: 24px;
 }
+/* above "Back to top" while that shows */
+body.browsing:has(#backToTop.show) #toast {
+  bottom: 80px;
+}
 #playerFrame > #toast {
   position: absolute; /* fullscreen: it moves into the player */
   z-index: var(--z-player-notice);

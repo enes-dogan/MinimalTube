@@ -139,6 +139,44 @@ body.browsing #browsePage {
   visibility: visible;
   transition: opacity 0.2s var(--ease);
 }
+
+/* ---- Back to top: rises into place once the page is scrolled past about five rows ---- */
+#backToTop {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: var(--z-browse-float);
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: var(--radius-round);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 40px) scale(0.85);
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.4s var(--ease),
+    background 0.15s var(--ease),
+    visibility 0s linear 0.4s;
+}
+#backToTop.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0) scale(1);
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.4s var(--ease),
+    background 0.15s var(--ease);
+}
+#backToTop:active {
+  transform: translate(-50%, 0) scale(0.92);
+}
+#backToTop svg {
+  width: 20px;
+  height: 20px;
+}
 .vCard .vSub.vChan {
   width: fit-content;
   max-width: 100%;
