@@ -14,6 +14,7 @@ async function loadSubscriptions() {
       );
     const data = await res.json();
     subscriptions = Array.isArray(data.subscriptions) ? data.subscriptions : [];
+    subsImporting = data.importing || 0;
     subsLoaded = true;
     feedState.serverError = null;
     chrome.storage.local.set({ feedSubscriptions: subscriptions.map((ch) => ch.id) });
@@ -31,6 +32,7 @@ let selectedChannel = null;
 // chip (with a + to subscribe) and its latest uploads are shown like a focused channel.
 let tempChannel = null;
 let subChipsOpen = false; // the list of subscribed channels is hidden until the button is clicked
+let subsImporting = 0; // the server's import work still to do (channels to look up and read)
 
 function toggleChannelFilter(ch) {
   selectedChannel = selectedChannel === ch.id ? null : ch.id;
@@ -276,6 +278,49 @@ async function removeSubscription(ch) {
     notify(`Couldn't unsubscribe: ${netMessage(firstLine(err.message))}`, true, 4000);
   }
 }
+// The YouTube account's subscriptions (youtube.com/feed/channels), read by the background. When
+// it can't read them through YouTube's API it opens that page in a tab and reads it there; the
+// result then comes as a message (subscriptionsImported).
+async function importSubscriptions() {
+  if (subImportBtn.disabled) return;
+  subImportBtn.disabled = true;
+  notify("Reading your subscriptions on YouTube…", false, 60e3);
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "minimaltube-import-subscriptions" });
+    if (res && res.fromPage) notify("Reading them from YouTube's page in a new tab…", false, 60e3);
+    else subscriptionsImported(res);
+  } catch (err) {
+    notify(`Couldn't import your subscriptions: ${firstLine(err.message)}`, true, 6e3);
+  } finally {
+    subImportBtn.disabled = false;
+  }
+}
+function subscriptionsImported(res) {
+  if (!res || !res.ok)
+    return notify(`Couldn't import your subscriptions: ${firstLine((res && res.error) || "no answer")}`, true, 6e3);
+  const parts = [`${res.added} new`, res.already && `${res.already} already here`, res.resolving && `${res.resolving} being looked up`];
+  notify(`Imported your subscriptions: ${parts.filter(Boolean).join(", ")}`, false, 5e3);
+  selectedChannel = null;
+  tempChannel = null;
+  subChipsOpen = false;
+  enterBrowse(true);
+  setBrowseTab("subs");
+  loadSubscriptions().then(() => {
+    showFeed();
+    if (res.resolving) followImport();
+  });
+}
+// Channels known only by their @handle join the subscriptions one by one as the server looks
+// them up: their videos show up in the feed as they do.
+async function followImport() {
+  for (let i = 0; i < 120 && subsImporting; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    const before = subscriptions.length;
+    await loadSubscriptions();
+    if (subscriptions.length !== before && !selectedChannel) showFeed();
+  }
+}
+subImportBtn.addEventListener("click", importSubscriptions);
 subAddBtn.addEventListener("click", addSubscription);
 subAddInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.isComposing) addSubscription();

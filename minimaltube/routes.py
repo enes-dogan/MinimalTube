@@ -44,6 +44,8 @@ from .feed import (
     build_feed,
     feed_cache,
     feed_cache_lock,
+    import_left,
+    import_subscriptions,
     parse_channel_input,
     resolve_channel,
     saved_subscriptions,
@@ -627,7 +629,17 @@ def playlists_remove_item(playlist_id, video_id):
 def subscriptions_list():
     with subs_lock:
         snapshot = list(saved_subscriptions)
-    return jsonify({"subscriptions": [subscription_public(c) for c in snapshot]})
+    return jsonify({"subscriptions": [subscription_public(c) for c in snapshot],
+                    "importing": import_left()})
+
+@app.route("/subscriptions/import", methods=["POST"])
+def subscriptions_import():
+    """Subscribe to many channels at once: {"channels": [{"id", "name", "handle"}, ...]}."""
+    channels = (request.get_json(silent=True) or {}).get("channels")
+    if not isinstance(channels, list):
+        return jsonify({"error": 'expected a JSON body like {"channels": [{"id": "UC...", "name": "...", '
+                                 '"handle": "@..."}, ...]}'}), 400
+    return jsonify(import_subscriptions(channels))
 
 @app.route("/subscriptions", methods=["POST"])
 def subscriptions_add():

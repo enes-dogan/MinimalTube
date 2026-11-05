@@ -83,7 +83,8 @@ body.browsing #browsePage {
   border-color: var(--accent);
   box-shadow: var(--focus-ring);
 }
-#feedRefresh {
+#feedRefresh,
+#subImportBtn {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -98,10 +99,16 @@ body.browsing #browsePage {
   cursor: pointer;
   transition: background 0.15s var(--ease);
 }
-#feedRefresh:hover {
+#feedRefresh:hover,
+#subImportBtn:hover:not(:disabled) {
   background: var(--hover);
 }
-#feedRefresh svg {
+#subImportBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#feedRefresh svg,
+#subImportBtn svg {
   width: 18px;
   height: 18px;
 }

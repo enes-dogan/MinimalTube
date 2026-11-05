@@ -515,6 +515,9 @@ chrome.runtime.onMessage.addListener((item, t, fn) => {
   } else if (item?.type === "minimaltube-take-playlist" && item.playlist) {
     whenLoaded(() => takeYouTubePlaylist(item.playlist));
     fn({ ok: true });
+  } else if (item?.type === "minimaltube-subscriptions-imported") {
+    whenLoaded(() => subscriptionsImported(item.result));
+    fn({ ok: true });
   }
 });
 playPauseBtn.addEventListener("click", togglePlayPause);

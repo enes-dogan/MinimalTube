@@ -13,7 +13,9 @@ to fetch, download and stream videos. No YouTube page ever loads.
   video or link → *Add to MinimalTube queue*, or paste a link in Settings.
 - **Subscriptions.** Add channels by @handle or link; their new uploads arrive in one
   feed. Click a channel name to see only that channel's content. The latest 36 videos of up to 30 channels are remembered, so the feed
-  and channel pages open instantly; new uploads slot in as they're found.
+  and channel pages open instantly; new uploads slot in as they're found. The import button
+  next to *Channels* brings over all your YouTube subscriptions at once (you need to be signed
+  in to YouTube in this browser); their videos fill the feed as they're read.
 - **Queue and playlists.** *Add next to queue*, drag to reorder, Back / Next. Save the
   queue (or any video) to your own playlists.
 - **Synced with YouTube.** Save one of your YouTube playlists from its page and it stays

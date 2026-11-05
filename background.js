@@ -616,7 +616,63 @@ async function flushYtSyncPending() {
 }
 chrome.runtime.onStartup.addListener(() => flushYtSyncPending());
 
+/* -------------------------------------------- importing YouTube subscriptions */
+
+// The account's subscriptions go to the server as one import. They're read through YouTube's API
+// (youtube.js); failing that, youtube.com/feed/channels opens in a tab whose content script reads
+// the page and sends them back ("minimaltube-import-channels").
+async function importSubscriptions() {
+  let channels;
+  try {
+    channels = await ytFetchSubscriptions();
+  } catch (err) {
+    if (/not signed in/.test(err.message))
+      return { ok: false, error: "sign in to YouTube in this browser first" };
+    console.warn("MinimalTube: reading the subscriptions through YouTube's API failed, reading the page instead:", err);
+    await chrome.tabs.create({ url: `${YT_ORIGIN}/feed/channels#minimaltube-import` });
+    return { ok: true, fromPage: true };
+  }
+  return sendImport(channels);
+}
+async function sendImport(channels) {
+  const server = await ensureServerOrNotify();
+  if (!server.ok) return server;
+  try {
+    const data = await serverJson("/subscriptions/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channels }),
+    });
+    return { ok: true, ...data };
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "minimaltube-import-subscriptions") {
+    importSubscriptions().then(sendResponse);
+    return true;
+  }
+  if (msg?.type === "minimaltube-import-channels" && Array.isArray(msg.channels)) {
+    const tabId = sender.tab?.id;
+    sendImport(msg.channels.slice(0, 5000)).then(async (res) => {
+      sendResponse(res);
+      if (!res.ok) return;
+      const player = await findPlayerTab();
+      if (player) {
+        chrome.tabs.sendMessage(player.id, { type: "minimaltube-subscriptions-imported", result: res }, () => {
+          chrome.runtime.lastError;
+        });
+        chrome.windows.update(player.windowId, { focused: true });
+      }
+      if (tabId != null)
+        chrome.tabs.remove(tabId, () => {
+          chrome.runtime.lastError;
+        });
+    });
+    return true;
+  }
   if (
     msg?.type === "minimaltube-yt-link" &&
     PLAYLIST_ID_RE.test(msg.playlistId) &&

@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from .config import (
     CACHE_DIR,
@@ -463,5 +463,90 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
               for cid in names
               if source_state(cid, "videos")["error"] and not source_state(cid, "videos")["offline"]]
     return items, has_more, errors, offline, pending
+
+# ---- Importing many subscriptions at once (a YouTube account's) ----
+# What can't be done on the spot (looking up a channel known only by its @handle, reading every
+# new channel's latest uploads so the feed has them when it asks) runs in the background, two at
+# a time to go easy on YouTube; import_left() counts what's still to do.
+HANDLE_RE = re.compile(r"^@[^\s/?#]{3,100}$")
+import_pool = ThreadPoolExecutor(max_workers=2)
+_import_lock = threading.Lock()
+_import_left = 0
+
+def import_left() -> int:
+    return _import_left
+
+def _run_import_task(fn, arg):
+    global _import_left
+    try:
+        fn(arg)
+    except Exception as e:
+        print(f"[import] {arg}: {str(e).splitlines()[0][:200] if str(e) else repr(e)}")
+    finally:
+        with _import_lock:
+            _import_left -= 1
+
+def _import_later(fn, arg):
+    global _import_left
+    with _import_lock:
+        _import_left += 1
+    import_pool.submit(_run_import_task, fn, arg)
+
+def _read_new_channel(channel_id: str):
+    for kind in FEED_KINDS:
+        ensure_channel_depth(channel_id, FEED_STEP, kind=kind)
+
+def _subscribe_handle(handle: str):
+    channel = resolve_channel(f"https://www.youtube.com/{quote(handle, safe='@')}")
+    with subs_lock:
+        if any(c["id"] == channel["id"] for c in saved_subscriptions):
+            return
+        channel["added"] = time.time()
+        saved_subscriptions.append(channel)
+        write_subscriptions()
+    _read_new_channel(channel["id"])
+
+def import_subscriptions(channels) -> dict:
+    """Subscribe to many channels at once (an import of a YouTube account's subscriptions).
+
+    Args:
+        channels (list[dict]): {"id": "UC...", "name": ..., "handle": "@..."} each. One with an
+            id is subscribed to on the spot; one with only a handle is looked up first, in the
+            background. Entries with neither are skipped.
+
+    Returns:
+        dict: "added" (new subscriptions), "already" (channels subscribed to before) and
+        "resolving" (handles being looked up). Every new channel's latest uploads are read in
+        the background, so the feed has them when it asks.
+    """
+    added, already, handles = [], 0, {}
+    with subs_lock:
+        have = {c["id"] for c in saved_subscriptions}
+        for entry in channels if isinstance(channels, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            cid = str(entry.get("id") or "")
+            handle = str(entry.get("handle") or "").strip()
+            handle = handle if HANDLE_RE.match(handle) else None
+            if not CHANNEL_ID_RE.match(cid):
+                if handle:
+                    handles[handle] = True
+                continue
+            if cid in have:
+                already += 1
+                continue
+            have.add(cid)
+            name = " ".join(str(entry.get("name") or "").split())[:100]
+            saved_subscriptions.append({"id": cid, "name": name or handle or cid, "handle": handle,
+                                        "url": f"https://www.youtube.com/channel/{cid}",
+                                        "added": time.time()})
+            added.append(cid)
+        if added:
+            write_subscriptions()
+    for cid in added:
+        _import_later(_read_new_channel, cid)
+    for handle in handles:
+        _import_later(_subscribe_handle, handle)
+    return {"added": len(added), "already": already, "resolving": len(handles)}
 
 load_short_info()

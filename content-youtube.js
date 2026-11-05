@@ -400,6 +400,51 @@
     ensurePlaylistButton();
   }
 
+  /* ------------------------------------------------ importing subscriptions */
+
+  // The extension opens youtube.com/feed/channels#minimaltube-import when it couldn't read the
+  // subscriptions through YouTube's API: scroll until every channel is rendered, then read them
+  // from the page. On this page a channel's #subscribers line shows its @handle.
+  async function importSubscriptionsFromPage() {
+    const nodes = () => document.querySelectorAll("ytd-channel-renderer");
+    notice("Collecting your subscriptions…", { error: false, ms: 0 });
+    for (let i = 0; i < 60 && !nodes().length; i++) await sleep(250);
+    let last = -1;
+    let stable = 0;
+    for (let i = 0; i < 300 && stable < 4; i++) {
+      const count = nodes().length;
+      if (count === last) stable++;
+      else {
+        stable = 0;
+        last = count;
+        notice(`Collecting your subscriptions… ${count}`, { error: false, ms: 0 });
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      await sleep(450);
+    }
+    const channels = [];
+    nodes().forEach((node) => {
+      const link = node.querySelector("a#main-link, a[href^='/@'], a[href^='/channel/']");
+      const href = (link && link.getAttribute("href")) || "";
+      const shown = ((node.querySelector("#subscribers") || {}).textContent || "").trim();
+      const id = (href.match(/^\/channel\/(UC[\w-]{22})/) || [])[1];
+      let handle = shown.startsWith("@") ? shown : null;
+      if (!handle && href.startsWith("/@"))
+        try {
+          handle = decodeURIComponent(href.slice(1).split(/[/?#]/)[0]);
+        } catch {}
+      const name = ((node.querySelector("#channel-title #text, #text") || {}).textContent || "").trim();
+      if (id || handle) channels.push({ id, handle, name });
+    });
+    if (!channels.length) return notice("No subscribed channels found on this page.");
+    notice(`Sending ${channels.length} channels to MinimalTube…`, { error: false, ms: 0 });
+    const res = await send({ type: "minimaltube-import-channels", channels });
+    if (!reportFailure(res)) clearNotice(); // the extension closes this tab
+  }
+
+  if (location.pathname === "/feed/channels" && location.hash === "#minimaltube-import")
+    importSubscriptionsFromPage();
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ensureButtons);
   else ensureButtons();
   document.addEventListener("yt-navigate-finish", () => setTimeout(ensureButtons, 600));

@@ -345,3 +345,52 @@ async function ytEditPlaylist(listId, cfg, actions) {
       throw new Error(`YouTube refused the playlist edit (${res.status})`);
   }
 }
+
+/* ------------------------------------------------------------- subscriptions */
+
+// One page of youtube.com/feed/channels (or a continuation of it): its channels and the token for
+// the next page. There a channel's "subscriberCountText" is its @handle, not a count.
+function parseChannelList(data) {
+  const channels = [];
+  let token = null;
+  walkJson(data, (node) => {
+    const ch = node.channelRenderer;
+    if (ch && /^UC[\w-]{22}$/.test(ch.channelId || "")) {
+      const shown = ch.subscriberCountText?.simpleText || "",
+        path = ch.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || "";
+      let handle = shown.startsWith("@") ? shown : null;
+      if (!handle && path.startsWith("/@"))
+        try {
+          handle = decodeURIComponent(path.slice(1));
+        } catch {}
+      channels.push({
+        id: ch.channelId,
+        name: ch.title?.simpleText || ch.title?.runs?.map((run) => run.text).join("") || "",
+        handle,
+      });
+    }
+    if (node.continuationItemRenderer)
+      token = continuationToken(node.continuationItemRenderer) || token;
+  });
+  return { channels, token };
+}
+
+// Every channel the signed-in account is subscribed to: [{id, name, handle}].
+async function ytFetchSubscriptions() {
+  const res = await fetch(`${YT_ORIGIN}/feed/channels?hl=en`, { credentials: "include" });
+  if (!res.ok) throw new Error(`subscriptions page returned ${res.status}`);
+  const html = await res.text();
+  const cfg = parseYtcfg(html);
+  if (!cfg.loggedIn) throw new Error("not signed in to YouTube in this browser profile");
+  const data = extractJsonAfter(html, "ytInitialData = {");
+  if (!data) throw new Error("couldn't read the subscriptions page");
+  const found = new Map();
+  let page = parseChannelList(data);
+  for (let pages = 1; ; pages++) {
+    page.channels.forEach((ch) => found.has(ch.id) || found.set(ch.id, ch));
+    if (!page.token || pages >= 100) break;
+    page = parseChannelList(await innertube("browse", cfg, { continuation: page.token }));
+  }
+  if (!found.size) throw new Error("no channels found on the subscriptions page");
+  return [...found.values()];
+}
