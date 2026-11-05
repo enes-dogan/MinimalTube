@@ -206,6 +206,10 @@ body.browsing #browsePage {
 #subFocus.show {
   display: flex;
 }
+#subFocus .subCount {
+  color: var(--accent);
+  font-weight: 600;
+}
 #subChips {
   display: none;
   flex-wrap: wrap;
@@ -437,10 +441,14 @@ body.browsing #browsePage {
   background: var(--accent);
   letter-spacing: 0.2px;
 }
-.vBadge.ok {
+.vBadge.ok,
+.vBadge.members {
   right: auto;
   left: 6px;
   color: var(--ok);
+}
+.vBadge.members {
+  color: var(--members);
 }
 /* a video's place in its playlist, in the corner opposite the length */
 .vBadge.num {

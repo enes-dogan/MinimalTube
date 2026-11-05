@@ -607,5 +607,10 @@ function makeVideoCard(chapter) {
     open: () => playVideoNow(chapter),
     menu: (anchor) => videoMenuEntries(chapter, anchor),
   });
+  if (chapter.members_only) {
+    const badge = el("span", "vBadge members", "Members only");
+    badge.title = "Only the channel's members can watch this";
+    card._thumb.appendChild(badge);
+  }
   return card;
 }

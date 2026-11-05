@@ -115,6 +115,8 @@ short_info_lock = threading.Lock()
 
 info_pool = ThreadPoolExecutor(max_workers=8)
 
+CHANNEL_FOLLOWERS = {}   # channel id -> subscriber count, from the latest read of its Videos tab
+
 info_pending = {}        # video id -> Future of its lookup
 
 def short_info_path() -> Path:
@@ -188,6 +190,8 @@ def ytdlp_channel_entries(channel_id: str, count: int, kind: str = "videos") -> 
              extractor_args={"youtubetab": {"approximate_date": [""]}}) as y:
         info = y.extract_info(f"https://www.youtube.com/channel/{channel_id}/{kind}",
                               download=False)
+    if kind == "videos" and isinstance(info.get("channel_follower_count"), int):
+        CHANNEL_FOLLOWERS[channel_id] = info["channel_follower_count"]
     out = []
     for e in (info.get("entries") or []):
         if not isinstance(e, dict):
@@ -208,6 +212,7 @@ def ytdlp_channel_entries(channel_id: str, count: int, kind: str = "videos") -> 
         out.append({"id": vid, "title": e.get("title") or vid,
                     "duration": e.get("duration"), "views": e.get("view_count"),
                     "timestamp": ts,
+                    "members_only": e.get("availability") == "subscriber_only",
                     # who actually owns the video (differs from this channel for collabs)
                     "owner": e.get("channel") or e.get("uploader"),
                     "owner_id": owner_id if isinstance(owner_id, str) and CHANNEL_ID_RE.match(owner_id) else None})
@@ -451,6 +456,7 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
         "timestamp": e["date"], "url": f"https://www.youtube.com/watch?v={e['id']}",
         "thumbnail": thumbnail_url(e["id"]), "downloaded": cached_path(e["id"]).exists(),
         "short": e.get("kind") == "shorts",
+        "members_only": bool(e.get("members_only")),
     } for e in page]
     # Only the Videos tab reports problems: a channel without a Shorts tab is not an error.
     errors = [{"channel": names[cid], "error": source_state(cid, "videos")["error"]}

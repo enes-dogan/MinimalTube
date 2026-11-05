@@ -80,6 +80,8 @@ function renderSubFocus() {
   clear.addEventListener("click", clearChannelFocus);
   chip.appendChild(clear);
   subFocus.append(label, chip);
+  const subscribers = (channelFeeds.get(ch.id) || {}).subscribers;
+  if (subscribers) subFocus.appendChild(el("span", "subCount", fmtCount(subscribers, "subscriber")));
 }
 
 /* "Unsubscribe?" confirmation, styled like the "Up next" popup */
@@ -476,9 +478,11 @@ function mergeChannel(id, data) {
     items,
     until: all.length > items.length ? items[items.length - 1].timestamp : until,
     at: data.offline ? 0 : Date.now(),
+    subscribers: data.subscribers || (old && old.subscribers) || null,
   });
   forgetOldestChannels();
   saveFeedMemorySoon();
+  if (id === selectedChannel) renderSubFocus();
   if (!feedState.loaded || !viewChannelIds().includes(id)) return;
   const known = feedState.bounds.get(id);
   feedState.bounds.set(id, overlap && known != null ? Math.min(cutoff, known) : cutoff);
@@ -549,7 +553,7 @@ function addFeedPage(data) {
 
 /* ---- Drawing ---- */
 const feedCardText = (item) =>
-  [item.title, item.views, item.thumbnail, item.duration, item.channel, timeAgo(item.timestamp)].join("\n");
+  [item.title, item.views, item.thumbnail, item.duration, item.channel, timeAgo(item.timestamp), !!item.members_only].join("\n");
 // Draws feedState.items over the cards already there: those stay (and with them the scroll
 // position, keyboard focus and open menus) unless their video changed; new ones fade in when
 // `marking`. New uploads (newer than everything shown before) arriving while you're scrolled

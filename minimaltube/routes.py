@@ -40,6 +40,7 @@ from .downloads import (
     remember_running_downloads,
 )
 from .feed import (
+    CHANNEL_FOLLOWERS,
     build_feed,
     feed_cache,
     feed_cache_lock,
@@ -685,7 +686,7 @@ def feed():
     channel_name = (request.args.get("name") or "").strip()[:100] or None
     items, has_more, errors, offline, pending = build_feed(offset, limit, refresh, channel, channel_name)
     return jsonify({"items": items, "has_more": has_more, "errors": errors, "offline": offline,
-                    "pending": pending})
+                    "pending": pending, "subscribers": CHANNEL_FOLLOWERS.get(channel) if channel else None})
 
 @app.route("/video/<video_id>", methods=["DELETE"])
 def delete_video(video_id):

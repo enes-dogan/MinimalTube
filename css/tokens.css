@@ -45,6 +45,7 @@
   /* Status */
   --ok: #7ee787; /* downloaded */
   --warn: #e8c15a; /* downloading / in progress */
+  --members: #8ab4f8; /* "Members only" videos */
   --danger: #ff8a8a; /* error text */
   --danger-fill: rgba(255, 138, 138, 0.12); /* hover wash of a destructive menu item */
   --ok-edge: rgba(126, 231, 135, 0.4);
