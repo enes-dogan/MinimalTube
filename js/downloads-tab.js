@@ -243,9 +243,18 @@ function reloadFromServer() {
     loadSubscriptions().then(() => showFeed());
 }
 // Opened straight from the app menu, the server may not be running yet: the extension starts it
-// (native host), and what loaded before it answered loads again.
+// (native host), and what loaded before it answered loads again. The extension also finds it on
+// whichever of its ports it runs (and remembers that as serverBase): the player follows.
 chrome.runtime.sendMessage({ type: "minimaltube-ensure-server" }, (res) => {
-  if (chrome.runtime.lastError || !res || !res.started) return;
+  if (chrome.runtime.lastError || !res || !res.ok) return;
+  const moved = !!res.serverBase && res.serverBase !== serverBase;
+  if (moved) serverBase = res.serverBase;
+  if (moved || res.started) whenLoaded(reloadFromServer);
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  const base = area === "local" && changes.serverBase && changes.serverBase.newValue;
+  if (!base || base === serverBase) return;
+  serverBase = base;
   whenLoaded(reloadFromServer);
 });
 

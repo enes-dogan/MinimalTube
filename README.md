@@ -103,9 +103,11 @@ Run `./install.sh` again if you move this folder.
   thumbnail to play; the player shrinks to a mini player while you browse (**I**).
 - **The side panel** (**T**, or the list button at the top right) holds the queue and your downloads.
 - **⋮ on any video or row** (or right-click it) for its actions; each has a letter shortcut key.
-- **Settings** (⚙): add a link to the queue, the server address, SponsorBlock, *Remember
+- **Settings** (⚙): add a link to the queue, SponsorBlock, *Remember
   queue*, YouTube history sync, *Stream while downloading* and *Stream only*. ★ shows
   the tour again; **i** shows the keyboard shortcuts.
+- **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
+  another program already uses it.
 
 ## Where things are (Linux)
 
@@ -133,7 +135,7 @@ so it runs the new code: Settings → **Restart server**. Or stop it by hand; th
 MinimalTube window starts it again:
 
 ```bash
-pkill -f "server.py --host 127.0.0.1 --port 7860"
+pkill -f "server.py --host 127.0.0.1"
 ```
 
 (A server you started by hand in a terminal stops with Ctrl+C there.)

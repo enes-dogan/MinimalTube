@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import struct
 import subprocess
 import sys
@@ -21,6 +22,8 @@ import urllib.request
 from pathlib import Path
 
 DEFAULT_SERVER_PORT = 7860
+# Another program may hold the preferred port: the server then takes the next free one of these.
+PORT_RANGE = 10
 
 
 def augment_path() -> None:
@@ -68,16 +71,34 @@ def find_server_script() -> Path:
 
 
 def server_is_healthy(port: int) -> bool:
+    """Whether MinimalTube's server answers on this port (its /health says "app": "minimaltube";
+    another program's server there doesn't count)."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as resp:
-            return resp.status == 200
+            return resp.status == 200 and json.loads(resp.read()).get("app") == "minimaltube"
     except Exception:
         return False
 
 
+def port_is_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
 def start_server(port: int) -> dict:
-    if server_is_healthy(port):
-        return {"ok": True, "already_running": True}
+    """Start the server unless it already runs on one of its ports; the answer's "port" says
+    where it is."""
+    ports = range(port, port + PORT_RANGE)
+    running = next((p for p in ports if server_is_healthy(p)), None)
+    if running is not None:
+        return {"ok": True, "already_running": True, "port": running}
+    port = next((p for p in ports if port_is_free(p)), None)
+    if port is None:
+        raise RuntimeError(f"ports {ports.start}-{ports.stop - 1} are all taken by other programs")
 
     script = find_server_script()
     log_dir = Path.home() / ".cache" / "minimaltube"
@@ -92,7 +113,7 @@ def start_server(port: int) -> dict:
         stderr=log,
         start_new_session=True,  # outlive this short-lived host process
     )
-    return {"ok": True, "pid": proc.pid, "log": str(log_dir / "server.log")}
+    return {"ok": True, "pid": proc.pid, "port": port, "log": str(log_dir / "server.log")}
 
 
 def run_native_host() -> int:
@@ -126,9 +147,8 @@ def main() -> int:
         parser.print_help()
         return 1
 
-    port = args.start_server
     try:
-        start_server(port)
+        port = start_server(args.start_server)["port"]
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

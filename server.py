@@ -95,7 +95,6 @@ def main():
         f"Cache directory: {CACHE_DIR} (auto-expires after {CACHE_MAX_AGE_DAYS}d, "
         f"capped at {CACHE_MAX_BYTES // (1024**3)}GB)"
     )
-    print("Keep this terminal open while you use the extension. Ctrl+C to stop.")
     serve(app, args.host, args.port)
 
 

@@ -10,6 +10,9 @@ yt-dlp finds it on the `PATH` by itself. `POST /restart` (Settings → Restart s
 runs it again in the same process, and the downloads that were running continue.
 `server.py --update-yt-dlp` (run by `install.sh`) and `POST /ytdlp/update` (Settings →
 Update yt-dlp, which then restarts) install the newest yt-dlp as that own copy.
+`/health` answers `"app": "minimaltube"`: that's how the extension and the native host tell this
+server from another program's. The host starts it on port 7860, or on the next free one up to
+7869; the extension finds it on any of those and remembers it as `serverBase`.
 Everything else lives here.
 
 Imports only go down this list, so there are no cycles:

@@ -362,7 +362,7 @@ def fetch_sponsor_segments(video_id: str) -> list:
     query = urlencode({"videoID": video_id, "categories": '["sponsor"]'})
     req = urllib.request.Request(f"{SPONSORBLOCK_API}?{query}", headers={"User-Agent": "MinimalTube"})
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code == 404:

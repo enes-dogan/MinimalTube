@@ -520,9 +520,7 @@ addLayer({
   inside: [gearBtn, "#bpSettingsBtn"],
 });
 saveSettingsBtn.addEventListener("click", () => {
-  const typed = serverInput.value.trim();
-  if (typed) serverBase = typed.replace(/\/$/, "");
-  chrome.storage.local.set({ serverBase, ...saveSettings() });
+  chrome.storage.local.set(saveSettings());
   if (!sponsorBlockEnabled) {
     sponsorSegments = [];
     renderSeekMarks();

@@ -921,4 +921,5 @@ def restart_server():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "started": STARTED})
+    # "app" is how the extension tells this server from another program on the same port
+    return jsonify({"status": "ok", "app": "minimaltube", "started": STARTED})

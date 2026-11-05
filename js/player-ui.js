@@ -94,7 +94,6 @@ chrome.storage.local.get(
     if (stored.serverBase) serverBase = stored.serverBase;
     if (undefined !== stored.captionsEnabled)
       captionsWanted = stored.captionsEnabled;
-    serverInput.value = serverBase;
     const params = new URLSearchParams(window.location.search),
       n = params.get("url"),
       s = params.get("pid"),

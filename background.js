@@ -121,20 +121,42 @@ async function openPlayerWindow(url) {
 
 /* ----------------------------------------------------------------- server */
 
+// The server runs on port 7860, or on the next free one of PORT_RANGE when another program has
+// that; wherever it was last found is remembered as "serverBase" (the player reads it too).
+const DEFAULT_PORT = 7860,
+  PORT_RANGE = 10;
+
 async function getServerBase() {
   const { serverBase } = await chrome.storage.local.get(["serverBase"]);
   return (serverBase || DEFAULT_SERVER).replace(/\/$/, "");
 }
 
-async function isHealthy(base) {
+// Only MinimalTube's server says "app": "minimaltube", so another program's server on one of
+// these ports is never taken for it.
+async function isHealthy(base, ms = 1500) {
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 1500);
+    const timer = setTimeout(() => ctrl.abort(), ms);
     const res = await fetch(`${base}/health`, { signal: ctrl.signal });
     clearTimeout(timer);
-    return res.ok;
+    return res.ok && (await res.json()).app === "minimaltube";
   } catch {
     return false;
+  }
+}
+
+// A MinimalTube server already running on any of its ports (asked all at once).
+async function findServer() {
+  const bases = Array.from({ length: PORT_RANGE }, (_, i) => `http://127.0.0.1:${DEFAULT_PORT + i}`);
+  try {
+    return await Promise.any(
+      bases.map(async (base) => {
+        if (await isHealthy(base, 800)) return base;
+        throw new Error("not here");
+      }),
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -161,32 +183,23 @@ function nativeMessage(message) {
   });
 }
 
-async function startServer(base) {
-  let port = 7860;
-  try {
-    const u = new URL(base);
-    if (!["127.0.0.1", "localhost"].includes(u.hostname))
-      return {
-        ok: false,
-        serverBase: base,
-        error: `Can't auto-start a server on another machine (${base}).`,
-      };
-    port = Number(u.port) || 80;
-  } catch (err) {
-    logQuiet("server address", err); // not a URL: try the default port
-  }
-
-  const res = await nativeMessage({ action: "start-server", port });
+// The native host starts the server on the first free port from 7860 and says which one.
+async function startServer() {
+  const res = await nativeMessage({ action: "start-server", port: DEFAULT_PORT });
   if (!res.ok)
     return {
       ok: false,
-      serverBase: base,
+      serverBase: DEFAULT_SERVER,
       error: `Couldn't start the MinimalTube server: ${res.error}`,
     };
+  const base = `http://127.0.0.1:${res.port || DEFAULT_PORT}`;
 
   // Flask + yt-dlp take a moment to come up.
   for (let i = 0; i < 40; i++) {
-    if (await isHealthy(base)) return { ok: true, serverBase: base, started: true };
+    if (await isHealthy(base)) {
+      await chrome.storage.local.set({ serverBase: base });
+      return { ok: true, serverBase: base, started: true };
+    }
     await sleep(250);
   }
   return {
@@ -198,12 +211,18 @@ async function startServer(base) {
 
 let startingServer = null;
 
-// Resolves to { ok, serverBase, error? }. Starts the server if it isn't running.
+// Resolves to { ok, serverBase, error? }: the server where it was last found, else on whichever
+// of its ports it runs now, else started.
 async function ensureServer() {
   const base = await getServerBase();
   if (await isHealthy(base)) return { ok: true, serverBase: base };
+  const found = await findServer();
+  if (found) {
+    await chrome.storage.local.set({ serverBase: found });
+    return { ok: true, serverBase: found };
+  }
   if (!startingServer)
-    startingServer = startServer(base).finally(() => {
+    startingServer = startServer().finally(() => {
       startingServer = null;
     });
   return startingServer;
