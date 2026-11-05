@@ -595,15 +595,17 @@
   margin: 0 -4px 0 0;
 }
 
-/* ---- Opened from the browse page: the panels float over it ---- */
+/* ---- Opened from the browse page: the panels float over it ----
+   The side panel reaches the top, as over the player: its header rows sit level with the browse
+   page's queue / settings buttons, which stay above it (#browseActions) where the header spacer
+   leaves them room. */
 #playlistPanel.bpFloat {
   position: fixed;
-  top: var(--bpTop, 66px);
+  top: 0;
   right: 0;
   bottom: 0;
   z-index: var(--z-browse-float);
   padding-bottom: 0;
-  border-top: 1px solid var(--line);
   transition: transform 0.32s var(--ease), visibility 0s linear 0.32s;
   visibility: hidden;
 }

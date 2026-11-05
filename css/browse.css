@@ -581,6 +581,7 @@ body.browsing #browsePage {
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
+  z-index: var(--z-browse-float-top); /* above the side panel, which reaches the top */
   display: flex;
   gap: 6px;
 }
