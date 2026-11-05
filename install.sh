@@ -161,7 +161,9 @@ if [ -z "$BROWSER_BIN" ]; then
   echo "Skipped the Start-menu shortcut: no Chromium-based browser found (set MINIMALTUBE_BROWSER=/path/to/browser)."
 else
   # The menu entry opens the player as an app window; the player asks the extension to start
-  # the server (through the native host above) and sizes its window on the first start.
+  # the server (through the native host above) and gives each new window its default size.
+  # No --window-size: when this entry is what starts the browser, Chromium gives every window that
+  # size instead of the one it saved, and the player would have to resize it on each open.
   rm -f "$DIR/minimaltube-launch.sh" # the generated launcher older versions put here
 
   ICON="$DIR/icons/icon128.png"
@@ -174,7 +176,7 @@ else
 Type=Application
 Name=MinimalTube
 Comment=Minimal YouTube player
-Exec="$BROWSER_BIN" --app=chrome-extension://$APP_ID/player.html --window-size=1280,900
+Exec="$BROWSER_BIN" --app=chrome-extension://$APP_ID/player.html
 Icon=$ICON
 Terminal=false
 Categories=AudioVideo;Video;Player;

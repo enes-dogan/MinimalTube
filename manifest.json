@@ -10,7 +10,8 @@
     "notifications",
     "nativeMessaging",
     "cookies",
-    "declarativeNetRequestWithHostAccess"
+    "declarativeNetRequestWithHostAccess",
+    "system.display"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",

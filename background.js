@@ -37,17 +37,23 @@ function logQuiet(where, err) {
   console.warn(`MinimalTube (${where}):`, err);
 }
 
-// Default window size: 2/3 of the screen width x 5/6 of its height (1280x900 on 1920x1080).
-// The player (js/downloads-tab.js) works that out from the real screen and stores it under "windowSize"; this
+// Default window size: a 16:9 page 3/4 as wide as the main screen, plus the title bar. The player
+// (js/downloads-tab.js) works that out from the real screen and stores it under "windowSize"; this
 // fixed value is only the fallback until the player has run once.
-const DEFAULT_WINDOW = { width: 1280, height: 900 };
+const DEFAULT_WINDOW = { width: 1280, height: 750 };
 
 async function getWindowSize() {
   try {
     const { windowSize } = await chrome.storage.local.get(["windowSize"]);
     const w = Math.round(Number(windowSize && windowSize.width));
     const h = Math.round(Number(windowSize && windowSize.height));
-    if (w >= 400 && h >= 300) return { width: w, height: h };
+    if (w >= 400 && h >= 300) {
+      const size = { width: w, height: h };
+      // where the player put its window last (the middle of the main screen), so it opens there
+      if (Number.isFinite(windowSize.left) && Number.isFinite(windowSize.top))
+        Object.assign(size, { left: Math.round(windowSize.left), top: Math.round(windowSize.top) });
+      return size;
+    }
   } catch (err) {
     logQuiet("window size", err);
   }
@@ -110,12 +116,7 @@ async function openPlayerWindow(url) {
     } catch {} // that window is gone: open a new one below
   }
   const size = await getWindowSize();
-  const win = await chrome.windows.create({
-    url,
-    type: "popup",
-    width: size.width,
-    height: size.height,
-  });
+  const win = await chrome.windows.create({ url, type: "popup", ...size });
   await chrome.storage.local.set({ minimaltubeWindowId: win.id });
 }
 
