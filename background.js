@@ -327,6 +327,120 @@ async function openPlaylistToSave(playlist) {
   return { ok: true, serverBase: server.serverBase };
 }
 
+/* ---------------------------------------------------- YouTube links open here */
+
+// With "Open YouTube links in MinimalTube" on (the default), a tab going to a YouTube video,
+// playlist or channel lands on open.html instead, before YouTube loads, and open.html hands the
+// link to openYouTubeLink. A link with LINK_SKIP in it goes through to YouTube (the player's
+// "Open on YouTube", and open.html's fallback when the app can't take it). Clicks on youtube.com
+// itself never load a page, so content-youtube.js catches those.
+const LINK_SKIP = "minimaltube=skip",
+  LINK_RULE_IDS = [101, 102, 103, 104, 105, 106];
+
+// Chromium gives each pattern 2 KB once compiled, so they only tell the kind of link apart (no
+// exact id lengths: those alone go over); parseYouTubeLink checks the rest, and open.html sends
+// what it doesn't take on to YouTube.
+function linkRules() {
+  const to = `chrome-extension://${chrome.runtime.id}/open.html#\\0`,
+    redirect = (id, regexFilter) => ({
+      id,
+      priority: 1,
+      action: { type: "redirect", redirect: { regexSubstitution: to } },
+      condition: { regexFilter, resourceTypes: ["main_frame"] },
+    });
+  return [
+    { id: 101, priority: 2, action: { type: "allow" }, condition: { urlFilter: LINK_SKIP, resourceTypes: ["main_frame"] } },
+    redirect(102, String.raw`^https?://(?:www\.|m\.|music\.)?youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|live/|embed/|v/).*`),
+    redirect(103, String.raw`^https?://(?:www\.|m\.|music\.)?youtube\.com/playlist\?(?:.*&)?list=.*`),
+    redirect(104, String.raw`^https?://(?:www\.|m\.)?youtube\.com/(?:@|channel/|c/|user/)[^/?#]+(?:/videos|/shorts|/streams|/featured)?/?(?:\?.*)?$`),
+    redirect(105, String.raw`^https?://youtu\.be/.+`),
+    redirect(106, String.raw`^https?://(?:www\.)?youtube-nocookie\.com/embed/.*`),
+  ];
+}
+
+// One rule at a time: Chromium refuses a whole batch over one rule it doesn't take.
+async function syncLinkRules() {
+  try {
+    const { openYouTubeLinks } = await chrome.storage.local.get(["openYouTubeLinks"]);
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: LINK_RULE_IDS });
+    if (openYouTubeLinks === false) return;
+    for (const rule of linkRules())
+      await chrome.declarativeNetRequest
+        .updateDynamicRules({ addRules: [rule] })
+        .catch((err) => console.warn(`MinimalTube: link rule ${rule.id} wasn't taken:`, err));
+  } catch (err) {
+    console.warn("MinimalTube: couldn't set up opening YouTube links here:", err);
+  }
+}
+chrome.runtime.onInstalled.addListener(syncLinkRules);
+chrome.runtime.onStartup.addListener(syncLinkRules);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.openYouTubeLinks) syncLinkRules();
+});
+
+/**
+ * What a YouTube link points at (the same links linkRules sends here).
+ * @param {string} raw Any URL.
+ * @returns {{video: string}|{list: string}|{channel: string}|null} A video's watch URL (watch,
+ *   youtu.be, /shorts/, /live/, /embed/, /v/, on www./m./music.youtube.com or
+ *   youtube-nocookie.com; its playlist and time are dropped), a /playlist page's list id, a
+ *   channel's URL (/@handle, /channel/UC…, /c/…, /user/…, or its videos/shorts/streams tab),
+ *   or null for anything else.
+ */
+function parseYouTubeLink(raw) {
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  const host = u.hostname.toLowerCase().replace(/^(?:www|m|music)\./, ""),
+    watch = (id) => (/^[A-Za-z0-9_-]{11}$/.test(id || "") ? { video: `${YT_ORIGIN}/watch?v=${id}` } : null);
+  if (host === "youtu.be") return watch(u.pathname.split("/")[1]);
+  if (host === "youtube-nocookie.com") return watch((u.pathname.match(/^\/embed\/([^/]+)/) || [])[1]);
+  if (host !== "youtube.com") return null;
+  if (u.pathname === "/watch") return watch(u.searchParams.get("v"));
+  const embedded = u.pathname.match(/^\/(?:shorts|live|embed|v)\/([^/]+)/);
+  if (embedded) return watch(embedded[1]);
+  const list = u.searchParams.get("list");
+  if (u.pathname === "/playlist") return /^[A-Za-z0-9_-]{2,64}$/.test(list || "") ? { list } : null;
+  const channel = u.pathname.match(
+    /^\/(@[^/]+|channel\/UC[A-Za-z0-9_-]{22}|c\/[^/]+|user\/[^/]+)(?:\/(?:videos|shorts|streams|featured))?\/?$/,
+  );
+  return channel ? { channel: `${YT_ORIGIN}/${channel[1]}` } : null;
+}
+
+// A YouTube link opened anywhere in the browser (open.html, or a click on youtube.com): a video
+// plays now (an open player keeps its queue and carries on after it), a playlist becomes the
+// queue, a channel opens its page.
+async function openYouTubeLink(raw) {
+  const link = parseYouTubeLink(raw);
+  if (!link) return { ok: false, notLink: true }; // open.html sends it on to YouTube
+  if (link.list) return openYouTubePlaylist(link.list);
+  const server = await ensureServerOrNotify();
+  if (!server.ok) return server;
+  let message, params;
+  if (link.video) {
+    message = { type: "minimaltube-play-now", url: link.video };
+    params = { url: link.video };
+  } else {
+    const channel = await serverJson(`/channel-lookup?url=${encodeURIComponent(link.channel)}`);
+    message = { type: "minimaltube-open-channel", channel };
+    params = { channel: channel.id, name: channel.name || "", handle: channel.handle || "" };
+  }
+  const player = await findPlayerTab();
+  if (player) {
+    try {
+      await chrome.tabs.sendMessage(player.id, message);
+      await chrome.windows.update(player.windowId, { focused: true });
+      return { ok: true };
+    } catch {} // still loading or just closed: open it with the link below
+  }
+  await openPlayerWindow(chrome.runtime.getURL("player.html") + "?" + new URLSearchParams(params));
+  return { ok: true };
+}
+
 /* ----------------------------------------------------------- context menu */
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -743,6 +857,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             chrome.runtime.lastError;
           });
       });
+    return true;
+  }
+  if (msg?.type === "minimaltube-open-link" && msg.url) {
+    openYouTubeLink(String(msg.url))
+      .catch((err) => ({ ok: false, error: String((err && err.message) || err) }))
+      .then(sendResponse);
     return true;
   }
   if (msg?.type === "minimaltube-open" && msg.url) {

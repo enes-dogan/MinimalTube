@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Opening in MinimalTube</title>
+    <link rel="icon" href="icons/icon32.png" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.5 system-ui, sans-serif;
+      }
+      main { padding: 16px; text-align: center; }
+      #status { margin: 12px 0 0; }
+      #detail { margin: 4px 0 0; color: var(--muted); font-size: 13px; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="icons/icon64.png" width="48" height="48" alt="" />
+      <p id="status">Opening in MinimalTube…</p>
+      <p id="detail"></p>
+    </main>
+    <script src="open.js"></script>
+  </body>
+</html>

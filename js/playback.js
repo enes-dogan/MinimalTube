@@ -520,6 +520,12 @@ chrome.runtime.onMessage.addListener((item, t, fn) => {
   } else if (item?.type === "minimaltube-subscriptions-imported") {
     whenLoaded(() => subscriptionsImported(item.result));
     fn({ ok: true });
+  } else if (item?.type === "minimaltube-play-now" && item.url) {
+    whenLoaded(() => playLinkNow(item.url));
+    fn({ ok: true });
+  } else if (item?.type === "minimaltube-open-channel" && item.channel?.id) {
+    whenLoaded(() => openChannel(item.channel));
+    fn({ ok: true });
   }
 });
 playPauseBtn.addEventListener("click", togglePlayPause);

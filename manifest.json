@@ -14,8 +14,9 @@
     "system.display"
   ],
   "host_permissions": [
-    "https://www.youtube.com/*",
-    "https://s.youtube.com/*",
+    "*://*.youtube.com/*",
+    "*://youtu.be/*",
+    "*://*.youtube-nocookie.com/*",
     "http://127.0.0.1/*",
     "http://localhost/*"
   ],
@@ -24,6 +25,12 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["open.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "background": {
     "service_worker": "background.js"
   },

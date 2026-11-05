@@ -442,6 +442,55 @@
     if (!reportFailure(res)) clearNotice(); // the extension closes this tab
   }
 
+  /* ------------------------------------------- links open in MinimalTube */
+  // With "Open YouTube links in MinimalTube" on, a click on a video, playlist or channel link here
+  // opens it in the app: YouTube changes pages without loading them, so the redirect in
+  // background.js (same links) never sees these. Ctrl/Shift/middle clicks load a page, so that
+  // catches them. Links into the video on this page (timestamps) stay with YouTube.
+  const APP_LINK_RE = new RegExp(
+    [
+      String.raw`^https?://(?:(?:www|m|music)\.)?youtube\.com/(?:watch\?(?:.*&)?v=[\w-]{11}|(?:shorts|live|embed|v)/[\w-]{11})`,
+      String.raw`^https?://(?:(?:www|m|music)\.)?youtube\.com/playlist\?(?:.*&)?list=[\w-]{2,64}`,
+      String.raw`^https?://(?:(?:www|m)\.)?youtube\.com/(?:@[^/?#]+|channel/UC[\w-]{22}|c/[^/?#]+|user/[^/?#]+)(?:/(?:videos|shorts|streams|featured))?/?(?:[?#].*)?$`,
+      String.raw`^https?://youtu\.be/[\w-]{11}`,
+    ].join("|"),
+    "i",
+  );
+  let linksToApp = true;
+  chrome.storage.local.get(["openYouTubeLinks"], (s) => (linksToApp = s.openYouTubeLinks !== false));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.openYouTubeLinks) linksToApp = changes.openYouTubeLinks.newValue !== false;
+  });
+  const linkVideoId = (href) => {
+    try {
+      const u = new URL(href);
+      return u.searchParams.get("v") || (u.pathname.match(/^\/(?:shorts|live)\/([\w-]{11})/) || [])[1] || null;
+    } catch {
+      return null;
+    }
+  };
+  window.addEventListener(
+    "click",
+    async (event) => {
+      if (!linksToApp || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
+        return;
+      const a = event.composedPath().find((el) => el instanceof HTMLAnchorElement && el.href);
+      if (!a || !APP_LINK_RE.test(a.href)) return;
+      const id = linkVideoId(a.href);
+      if (id && id === linkVideoId(location.href)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const res = await send({ type: "minimaltube-open-link", url: a.href });
+      if (reportFailure(res)) {
+        // the app couldn't take it: YouTube opens it after all (the redirect lets this through)
+        const url = new URL(a.href);
+        url.searchParams.set("minimaltube", "skip");
+        setTimeout(() => location.assign(url.href), 2500);
+      }
+    },
+    true,
+  );
+
   if (location.pathname === "/feed/channels" && location.hash === "#minimaltube-import")
     importSubscriptionsFromPage();
 

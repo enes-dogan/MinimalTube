@@ -395,6 +395,12 @@ const videoItem = (chapter) => ({
   duration: chapter.duration || undefined,
 });
 
+// A YouTube link opened in the browser (background.js): it plays now, like a card's Play.
+function playLinkNow(url) {
+  const id = videoIdFromUrl(url);
+  if (id && id === currentVideoId && !playerFrame.classList.contains("empty")) return exitBrowse();
+  playVideoNow({ id, url, title: url });
+}
 // Play right away: it goes in right after the current queue item, so the queue carries on after it.
 function playVideoNow(v) {
   const item = videoItem(v);
@@ -514,6 +520,13 @@ function videoMenuEntries(v, anchor) {
     saveToEntry(anchor, videoItem(v), "P"),
     addNextEntry(v),
     downloadEntryFor(v),
+    {
+      label: "Open on YouTube",
+      key: "Y",
+      icon: ICON_EXTERNAL,
+      // the marker lets it past "Open YouTube links in MinimalTube" (background.js)
+      onClick: () => chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${v.id}&minimaltube=skip` }),
+    },
   ];
 }
 
