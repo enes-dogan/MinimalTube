@@ -526,6 +526,22 @@ body.browsing:has(#backToTop.show) #toast {
   color: var(--text);
   font-size: var(--fs-md);
 }
+/* more rows below (scroll): the card's bottom fades out, until it's scrolled to the end */
+.helpCard::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  display: block;
+  height: 56px;
+  margin: -56px -20px 0; /* over the last rows, across the card's side padding */
+  background: linear-gradient(transparent, var(--surface-dialog) 85%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s var(--ease);
+}
+.helpCard.more::after {
+  opacity: 1;
+}
 .helpTitle {
   margin-bottom: 10px;
   font-size: var(--fs-lg);

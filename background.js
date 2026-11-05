@@ -372,7 +372,7 @@ async function flushHistoryPending() {
     const { ytHistorySyncEnabled } = await chrome.storage.local.get([
       "ytHistorySyncEnabled",
     ]);
-    if (!ytHistorySyncEnabled) return;
+    if (ytHistorySyncEnabled === false) return; // on unless switched off (the player's default)
     for (const id of await getHistoryPending()) {
       try {
         await markWatchedOnYouTube(id);

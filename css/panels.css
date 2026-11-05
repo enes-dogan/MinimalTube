@@ -47,6 +47,16 @@
   font-size: var(--fs-sm);
   margin-bottom: 10px;
 }
+#serverState {
+  margin-left: 8px;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+#serverState.down {
+  color: var(--danger);
+}
 #settingsPanel label {
   display: block;
   color: var(--muted);

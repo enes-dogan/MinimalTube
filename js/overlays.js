@@ -98,7 +98,7 @@ function renderShortcutHelp() {
   }
   const cardTop = 84,
     cardMax = controlsTop - CALLOUT_GAP - 5 * CALLOUT_ROW_H - 12 - cardTop;
-  add(
+  const card = add(
     "helpCard",
     { top: `${cardTop}px`, maxHeight: `${Math.max(150, cardMax)}px` },
     `<div class="helpTitle">Keyboard shortcuts</div><div class="helpGrid">${SHORTCUT_LIST.map(
@@ -106,9 +106,18 @@ function renderShortcutHelp() {
         typeof row === "string"
           ? `<div class="helpSection">${row}</div>`
           : `<div class="helpKeys">${keyChips(row[0])}</div><div>${row[1]}</div>`,
-    ).join("")}</div><div class="helpHint">Click anywhere or press any key to close</div>`,
+    ).join("")}</div><div class="helpHint">↑ ↓ scroll · click anywhere or press another key to close</div>`,
   );
+  // more rows below than the card shows: its bottom fades out until it's scrolled to the end
+  const paintMore = () =>
+    card.classList.toggle("more", card.scrollTop + card.clientHeight < card.scrollHeight - 2);
+  card.addEventListener("scroll", paintMore, { passive: true });
+  card.addEventListener("scrollend", () => helpState && (helpState.scrollGoal = null));
+  paintMore();
+  helpState.card = card;
+  helpState.scrollGoal = null;
 }
+const HELP_SCROLL_KEYS = ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"];
 function openShortcutHelp() {
   if (helpState) return;
   helpState = {
@@ -144,6 +153,21 @@ function closeShortcutHelp(event) {
   if (!state) return;
   event.preventDefault();
   event.stopPropagation();
+  if (event.type === "keydown" && HELP_SCROLL_KEYS.includes(event.key)) {
+    // these scroll the list instead of closing it
+    const card = state.card;
+    if (!card) return;
+    // quick presses add up: count from where the running scroll is headed, not where it is
+    const from = state.scrollGoal ?? card.scrollTop,
+      page = card.clientHeight - 60,
+      end = card.scrollHeight - card.clientHeight,
+      to = { ArrowDown: from + 60, ArrowUp: from - 60, PageDown: from + page, PageUp: from - page, Home: 0, End: end }[
+        event.key
+      ];
+    state.scrollGoal = Math.max(0, Math.min(end, to));
+    card.scrollTo({ top: state.scrollGoal, behavior: "smooth" });
+    return;
+  }
   if (event.type === "pointerdown") {
     document.addEventListener("click", swallowClick, { capture: true, once: true });
     setTimeout(
@@ -178,14 +202,14 @@ document.getElementById("shortcutsBtn").addEventListener("click", (event) => {
  * opens it again.
  * ===================================================================== */
 const WELCOME_FEATURES = [
-  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link in Settings."],
-  ["◉", "Your subscriptions", "Add a channel on the Subscriptions tab with its @handle or link. New uploads from all of them arrive in one feed, newest first; click a purple channel name to see only that channel."],
-  ["☰", "Queue and playlists", "⋮ → <b>Add next to queue</b> lines videos up; drag to reorder, Back / Next move through it. Save the queue as a playlist with <b>+</b>, or any video with ⋮ → <b>Save to playlist</b>."],
-  ["⟳", "Synced with YouTube", "Save one of your own playlists from its page on youtube.com and it stays two-way synced: changes on either side show up on the other. Finished videos can go to your YouTube history (Settings)."],
-  ["⬇", "Downloads", "Everything you watched is on the Downloads tab and plays offline. Delete a file, a playlist or remove a video from a list, or clear the queue; the bar in the corner (or <b>U</b>) undoes it for 5 seconds."],
+  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock<b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link in Settings."],
+  ["◉", "Your subscriptions", "Add a channel on the Subscriptions tab with its @handle or link. New uploads from all of them arrive in one feed."],
+  ["☰", "Queue and playlists", "⋮ → <b>Add next to queue</b> lines videos up; drag to reorder. Save the queue as a playlist with <b>+</b>, or any video with ⋮ → <b>Save to playlist</b>."],
+  ["⟳", "Synced with YouTube", "Save one of your own playlists from its page on youtube.com and it stays two-way synced: changes on either side show up on the other. Finished videos show up at your <b>YouTube history</b> (Settings)."],
+  ["⬇", "Downloads", "Everything you downloaded plays offline. Delete a file, a playlist or remove a video from a list, or clear the queue; the bar in the corner (or <b>U</b>) undoes it for 5 seconds."],
   ["⚡", "Instant start", "Settings → <b>Stream while downloading</b> starts videos in a second while they download; <b>Stream only</b> just streams, at up to 1080p, without keeping a copy."],
-  ["⏱", "Picks up where you left off", "Videos resume where you stopped, with progress bars on every thumbnail. Captions in the video's own language, SponsorBlock skipping and chapters come along."],
-  ["⌨", "Made for the keyboard", "Every list works with Tab, the arrow keys and Enter; every ⋮ menu has letter keys. The shortcuts come next."],
+  ["⏱", "Picks up where you left off", "Videos resume where you stopped, placback speed and volume is rememmbered too. Captions and chapters come along."],
+  ["⌨", "Made for the keyboard", "Entire app can be controlled with keyboard, arrow keys and Enter; every ⋮ menu has letter shortcuts keys."],
 ];
 let welcomeEl = null;
 function showWelcome({ then } = {}) {

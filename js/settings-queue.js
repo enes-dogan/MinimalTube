@@ -9,9 +9,9 @@ const streamOnlyMode = () => streamWhileDownloading && streamOnly;
 const SETTINGS = [
   { key: "sponsorBlockEnabled", input: sponsorToggle, def: true, set: (on) => (sponsorBlockEnabled = on) },
   { key: "queuePersistEnabled", input: queuePersistToggle, def: false, set: (on) => (rememberQueue = on) },
-  { key: "ytHistorySyncEnabled", input: ytHistoryToggle, def: false, set: (on) => (ytHistorySync = on) },
-  { key: "streamWhileDownloading", input: streamToggle, def: false, set: (on) => (streamWhileDownloading = on) },
-  { key: "streamOnly", input: streamOnlyToggle, def: false, set: (on) => (streamOnly = on), needs: streamToggle },
+  { key: "ytHistorySyncEnabled", input: ytHistoryToggle, def: true, set: (on) => (ytHistorySync = on) },
+  { key: "streamWhileDownloading", input: streamToggle, def: true, set: (on) => (streamWhileDownloading = on) },
+  { key: "streamOnly", input: streamOnlyToggle, def: true, set: (on) => (streamOnly = on), needs: streamToggle },
 ];
 function paintSettingDependencies() {
   SETTINGS.forEach(({ input, needs }) => {
@@ -511,8 +511,23 @@ gearBtn.addEventListener("click", () => {
   if (e) {
     urlInput.focus();
     urlInput.select();
+    showServerState();
   }
 });
+// The port this player talks to its server on (7860, or the next free one when that was taken)
+const serverState = document.getElementById("serverState");
+async function showServerState() {
+  let port;
+  try {
+    port = new URL(serverBase).port || "80";
+  } catch {
+    port = "?";
+  }
+  const up = await api("/health").then(() => true, () => false);
+  serverState.textContent = up ? `server on localhost:${port}` : `server not reachable (:${port})`;
+  serverState.title = serverBase;
+  serverState.classList.toggle("down", !up);
+}
 addLayer({
   el: settingsPanel,
   isOpen: () => settingsPanel.classList.contains("open"),
