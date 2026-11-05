@@ -15,7 +15,7 @@ one big file would: no imports, no build step.
 | `playlists.js` | Saved playlists: loading one into the queue, deleting one (with Undo), the "Save as playlist" dialog. |
 | `browse.js` | The browse page and mini player, formatting helpers, the shared menu renderer (`fillMenu`) and positioner (`placePopup`), right-click menus, the feed's cards (`makeCard`, `makeThumb`). |
 | `feed.js` | Subscriptions and the feed. Every channel remembers its newest 36 videos (30 channels, saved a moment after changes); a channel's page and the Subscriptions feed (all subscribed channels merged, newest first) are drawn from that at once, then each channel is asked again in the background and the cards are updated in place. |
-| `playlists-tab.js` | The Playlists tab: reorderable card grids, a playlist's page, YouTube playlist sync. |
+| `playlists-tab.js` | The Playlists tab: reorderable card grids, a playlist's page (its cards' channel / views / age come from `/info`), YouTube playlist sync. |
 | `downloads-tab.js` | Default window size, the Downloads tab, the default page, `reloadFromServer()` (after the server (re)starts). |
 | `keyboard.js` | Keyboard navigation in lists (`makeRovingList`), the skip link, keyboard-opened menus, Shift+N / Shift+B, **I** and the mini player's close button. |
 | `seekbar.js` | Chapters and SponsorBlock marks on the seekbar. |

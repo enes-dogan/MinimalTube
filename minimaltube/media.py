@@ -2,6 +2,7 @@
 from __future__ import annotations  # `str | None` annotations on Python 3.9
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -21,7 +22,7 @@ from .config import (
     CACHE_MAX_BYTES,
     VIDEO_ID_RE,
 )
-from .ytinfo import video_info
+from .ytinfo import video_info, video_meta
 
 
 def remove_video_files(video_id: str) -> int:
@@ -171,10 +172,16 @@ def remember_meta(video_id: str, info):
         return None
     meta = meta_from_info(info)
     try:
-        meta_path(video_id).write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        _write_meta(video_id, meta)
     except OSError as e:
         print(f"[meta] couldn't save {meta_path(video_id).name}: {e}")
     return meta
+
+def _write_meta(video_id: str, meta: dict):
+    # through a temp file: lookups for whole playlists read these while others write them
+    tmp = CACHE_DIR / f"{video_id}.meta.{threading.get_ident()}.tmp"
+    tmp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, meta_path(video_id))
 
 def cached_meta(video_id: str):
     try:
@@ -208,7 +215,7 @@ def probe_duration(video_id: str):
         return None
     meta["duration"] = dur
     try:
-        meta_path(video_id).write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        _write_meta(video_id, meta)
     except OSError:
         pass
     return dur
@@ -227,6 +234,59 @@ def _lookup_duration(video_id: str):
         duration_failed.add(video_id)
     finally:
         duration_pending.discard(video_id)
+
+def card_info(video_id: str) -> dict:
+    """What a video card shows under its title, as far as it's saved for this video.
+
+    Args:
+        video_id (str): An 11-character YouTube video id.
+
+    Returns:
+        dict: "channel", "channel_id", "views" (each None when unknown) and "timestamp": the
+        upload day as a Unix time (UTC midnight; only the day is kept), or None.
+    """
+    meta = cached_meta(video_id) or {}
+    _known, date = cached_release_date(video_id)
+    return {"channel": meta.get("channel") or meta.get("handle"), "channel_id": meta.get("channel_id"),
+            "views": meta.get("views"),
+            "timestamp": datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
+            if date else None}
+
+card_info_failed = set()
+
+card_info_pending = set()
+
+card_info_pool = ThreadPoolExecutor(max_workers=4)
+
+def needs_card_info(video_id: str) -> bool:
+    # a download's length alone (probe_duration) isn't the card's info: no channel in it
+    return (video_id not in card_info_failed
+            and (not (cached_meta(video_id) or {}).get("channel_id")
+                 or not cached_release_date(video_id)[0]))
+
+def _oembed_author(video_id: str):
+    req = urllib.request.Request(
+        f"https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v={video_id}",
+        headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        return json.loads(resp.read().decode("utf-8")).get("author_name")
+
+def lookup_card_info(video_id: str):
+    try:
+        info = video_meta(video_id)  # the light lookup: this runs for whole playlists
+        if not (info.get("channel") or info.get("uploader")):
+            # YouTube's player API leaves the channel's name out; its oEmbed answer has it
+            try:
+                info["channel"] = _oembed_author(video_id)
+            except (OSError, ValueError):
+                pass
+        if not (cached_meta(video_id) or {}).get("channel_id"):  # a full lookup's knows more: keep it
+            remember_meta(video_id, info)
+        remember_release_date(video_id, info)
+    except Exception:
+        card_info_failed.add(video_id)
+    finally:
+        card_info_pending.discard(video_id)
 
 def meta_public(meta) -> dict:
     meta = meta or {}

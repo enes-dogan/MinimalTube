@@ -56,6 +56,9 @@ from .media import (
     cached_path,
     cached_release_date,
     cached_sponsor_segments,
+    card_info,
+    card_info_pending,
+    card_info_pool,
     chapters_path,
     clean_chapters,
     description_path,
@@ -63,8 +66,10 @@ from .media import (
     duration_pending,
     duration_pool,
     fetch_sponsor_segments,
+    lookup_card_info,
     mark_thumbnail_used,
     meta_public,
+    needs_card_info,
     probe_duration,
     remember_chapters,
     remember_description,
@@ -418,6 +423,20 @@ def durations():
                 duration_pool.submit(_lookup_duration, vid)
         out[vid] = d
     return jsonify({"durations": out, "pending": waiting})
+
+@app.route("/info")
+def videos_info():
+    """What video cards show under the title (channel, views, upload day) for ?ids=a,b,c, as far
+    as it's saved; videos without it are looked up in the background ("pending": ask again)."""
+    ids = [v for v in (request.args.get("ids") or "").split(",") if VIDEO_ID_RE.match(v)][:200]
+    waiting = False
+    for vid in ids:
+        if needs_card_info(vid):
+            waiting = True
+            if vid not in card_info_pending and len(card_info_pending) < MAX_DURATION_LOOKUPS:
+                card_info_pending.add(vid)
+                card_info_pool.submit(lookup_card_info, vid)
+    return jsonify({"info": {vid: card_info(vid) for vid in ids}, "pending": waiting})
 
 @app.route("/library/order", methods=["POST"])
 def library_set_order():

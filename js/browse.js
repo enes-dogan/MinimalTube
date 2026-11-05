@@ -173,14 +173,23 @@ function fmtDur(sec) {
     ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`
     : `${minutes}:${seconds}`;
 }
-function fmtViews(count) {
+/**
+ * A count the way YouTube shortens it: 1234 → "1.2K views", 15300000 → "15.3M views".
+ * @param {number|null} count The number; null / not finite gives "".
+ * @param {string} noun What is counted, singular ("view", "subscriber"); an "s" is added.
+ * @returns {string}
+ */
+function fmtCount(count, noun) {
   if (count == null || !isFinite(count)) return "";
   const fmt = (v, u) =>
     `${v >= 100 || Number.isInteger(v) ? Math.round(v) : v.toFixed(1)}${u}`;
-  if (count >= 1e9) return `${fmt(count / 1e9, "B")} views`;
-  if (count >= 1e6) return `${fmt(count / 1e6, "M")} views`;
-  if (count >= 1e3) return `${fmt(count / 1e3, "K")} views`;
-  return `${count} view${count === 1 ? "" : "s"}`;
+  if (count >= 1e9) return `${fmt(count / 1e9, "B")} ${noun}s`;
+  if (count >= 1e6) return `${fmt(count / 1e6, "M")} ${noun}s`;
+  if (count >= 1e3) return `${fmt(count / 1e3, "K")} ${noun}s`;
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+function fmtViews(count) {
+  return fmtCount(count, "view");
 }
 function timeAgo(ts) {
   if (!ts) return "";
@@ -568,25 +577,35 @@ function makeCard({ thumb, fallback, videoId, badge, video, title, lines = [], o
   card.append(thumbEl, meta);
   return card;
 }
-function makeVideoCard(chapter) {
-  const chan = el("div", "vSub", chapter.channel || "");
-  if (chapter.channel_id) {
+/**
+ * The lines under a video card's title: its channel (a click opens the channel's page) and
+ * "views · age". Missing parts are left out.
+ * @param {{channel?: string, channel_id?: string, views?: number, timestamp?: number}} video
+ * @returns {HTMLElement[]} For makeCard's `lines`.
+ */
+function videoCardLines(video) {
+  const chan = el("div", "vSub", video.channel || "");
+  if (video.channel_id) {
     chan.classList.add("vChan");
-    chan.title = `Latest uploads from ${chapter.channel}`;
+    chan.title = `Latest uploads from ${video.channel}`;
     chan.addEventListener("click", () => {
-      if (selectedChannel !== chapter.channel_id)
-        openChannel({ id: chapter.channel_id, name: chapter.channel });
+      if (selectedChannel !== video.channel_id)
+        openChannel({ id: video.channel_id, name: video.channel });
     });
   }
-  return makeCard({
+  return [chan, el("div", "vSub", [fmtViews(video.views), timeAgo(video.timestamp)].filter(Boolean).join(" · "))];
+}
+function makeVideoCard(chapter) {
+  const card = makeCard({
     thumb: `${serverBase}/thumb/${chapter.id}`, // kept by the server, so it also shows offline
     fallback: chapter.thumbnail,
     videoId: chapter.id,
     badge: chapter.duration ? fmtDur(chapter.duration) : null, // Shorts too: the badge is the length
     video: chapter,
     title: chapter.title,
-    lines: [chan, [fmtViews(chapter.views), timeAgo(chapter.timestamp)].filter(Boolean).join(" · ")],
+    lines: videoCardLines(chapter),
     open: () => playVideoNow(chapter),
     menu: (anchor) => videoMenuEntries(chapter, anchor),
   });
+  return card;
 }

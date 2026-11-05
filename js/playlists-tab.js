@@ -305,6 +305,41 @@ function renderPlaylistPage() {
   items.forEach((item, idx) =>
     plItemsGrid.appendChild(makePlaylistItemCard(pl, item, idx)),
   );
+  wantCardInfo(pl);
+}
+// Channel, views and upload day for the cards whose videos the server has no saved info on
+// yet: it looks them up in the background, and the cards fill in as the answers come.
+const cardInfoAsked = new Map(); // video id -> when last asked
+async function wantCardInfo(pl, tries = 0) {
+  const now = Date.now(),
+    missing = (pl.items || []).filter(
+      (item) =>
+        (!item.channel || !item.channel_id || item.views == null || !item.timestamp) &&
+        now - (cardInfoAsked.get(item.id) || 0) > 2500,
+    ),
+    batch = missing.slice(0, 200);
+  if (!batch.length) return;
+  batch.forEach((item) => cardInfoAsked.set(item.id, now));
+  let data;
+  try {
+    data = await api(`/info?ids=${batch.map((item) => item.id).join(",")}`);
+  } catch (err) {
+    return logQuiet("card info", err);
+  }
+  batch.forEach((item) => {
+    const info = (data.info || {})[item.id];
+    if (!info) return;
+    Object.entries(info).forEach(([key, value]) => value != null && (item[key] = value));
+    const text = plItemsGrid.querySelector(`.vCard[data-vid="${item.id}"] .vText`);
+    if (!text || openPlaylistId !== pl.id) return;
+    text.querySelectorAll(".vSub").forEach((line) => line.remove());
+    text.append(...videoCardLines(item));
+  });
+  if ((data.pending || missing.length > batch.length) && tries < 20)
+    setTimeout(() => {
+      const open = openPlaylist();
+      if (open && open.id === pl.id) wantCardInfo(open, tries + 1);
+    }, 3000);
 }
 function makePlaylistItemCard(pl, item, idx) {
   const play = () => {
@@ -318,7 +353,7 @@ function makePlaylistItemCard(pl, item, idx) {
     badge: item.duration ? fmtDur(item.duration) : null,
     video: item,
     title: item.title || item.url,
-    lines: [`${idx + 1} of ${(pl.items || []).length}`],
+    lines: videoCardLines(item),
     open: play,
     className: item.id === currentVideoId ? "playing" : "",
     menu: () => [
@@ -348,6 +383,9 @@ function makePlaylistItemCard(pl, item, idx) {
     ],
   });
   card.dataset.vid = item.id;
+  const position = el("span", "vBadge num", String(idx + 1));
+  position.title = `${idx + 1} of ${(pl.items || []).length}`;
+  card._thumb.appendChild(position);
   return card;
 }
 function applySavedPlaylist(updated, follow = true) {

@@ -132,13 +132,13 @@ body.browsing #browsePage {
   visibility: visible;
   transition: opacity 0.2s var(--ease);
 }
-#feedGrid .vSub.vChan {
+.vCard .vSub.vChan {
   width: fit-content;
   max-width: 100%;
   color: var(--link);
   cursor: pointer;
 }
-#feedGrid .vSub.vChan:hover {
+.vCard .vSub.vChan:hover {
   text-decoration: underline;
 }
 #feedGrid .vCard.fresh {
@@ -441,6 +441,15 @@ body.browsing #browsePage {
   right: auto;
   left: 6px;
   color: var(--ok);
+}
+/* a video's place in its playlist, in the corner opposite the length */
+.vBadge.num {
+  top: 6px;
+  right: auto;
+  bottom: auto;
+  left: 6px;
+  min-width: 22px;
+  text-align: center;
 }
 
 /* ---- Card title and meta ---- */

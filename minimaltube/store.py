@@ -16,7 +16,7 @@ from .config import (
     SHORTS_LIVE_RE,
     VIDEO_ID_RE,
 )
-from .media import cached_meta, cached_path, thumbnail_url, video_id_from_url
+from .media import cached_path, card_info, thumbnail_url, video_id_from_url
 from .ytinfo import video_meta
 
 
@@ -196,10 +196,9 @@ def playlist_public(p: dict) -> dict:
     for it in p.get("items", []):
         path = cached_path(it["id"]) if VIDEO_ID_RE.match(str(it.get("id", ""))) else None
         have = bool(path and path.exists())
-        meta = (cached_meta(it["id"]) if path else None) or {}
         items.append({**it, "file": str(path) if have else None, "downloaded": have,
                       "thumbnail": thumbnail_url(it.get("id", "")),
-                      "channel": meta.get("channel"), "channel_id": meta.get("channel_id")})
+                      **(card_info(it["id"]) if path else {})})
     return {"id": p["id"], "name": p.get("name", ""), "created": p.get("created"),
             "updated": p.get("updated"), "count": len(items), "items": items,
             "yt": p.get("yt")}
