@@ -271,6 +271,29 @@ function preparePath(url, streamOnly = streamOnlyMode()) {
     sponsorBlockEnabled ? "&sponsorblock=1" : ""
   }`;
 }
+/**
+ * Letter keys for a dialog's buttons while it shows, the ones its key hints name. They're caught
+ * before the player's own letter keys (C is captions), and left alone while typing in a field.
+ * @param {HTMLElement} dialog Open while it has the class "show".
+ * @param {Object<string, HTMLButtonElement>} buttons KeyboardEvent.code → the button it clicks,
+ *   e.g. {KeyC: cancelButton}.
+ */
+function dialogKeys(dialog, buttons) {
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (!dialog.classList.contains("show") || event.ctrlKey || event.metaKey || event.altKey ||
+          event.repeat || isTypingTarget(event.target))
+        return;
+      const button = buttons[event.code];
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      button.click();
+    },
+    true,
+  );
+}
 function restartAnimation(node, ...classes) {
   node.classList.remove(...classes);
   void node.offsetWidth;

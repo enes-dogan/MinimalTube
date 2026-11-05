@@ -594,8 +594,17 @@ body.browsing #toast {
   flex-shrink: 0;
   padding: 5px 12px;
 }
-#undoBar .ubUndo .kbd {
+#undoBar .ubUndo .kbd,
+#upNext .unActions .kbd,
+#confirmUnsub .unActions .kbd {
   margin-left: 7px;
+}
+/* on a coloured button the hint takes the button's own text colour */
+#upNext .btn-primary .kbd,
+#confirmUnsub .btn-danger .kbd {
+  border-color: currentColor;
+  background: transparent;
+  color: inherit;
 }
 #undoBar .ubBar {
   position: absolute;

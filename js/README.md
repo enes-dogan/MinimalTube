@@ -6,7 +6,7 @@ one big file would: no imports, no build step.
 | File | What it owns |
 |---|---|
 | `stream.js` | `LiveStream`: playing YouTube's separate video + audio streams with Media Source Extensions (adaptive 720p ↔ 1080p in Stream only). Knows nothing about the rest of the page. |
-| `core.js` | The page's elements, the connection state (OFFLINE badge, `whenNetChanges`), `notify()`, SponsorBlock lookups, the server API (`api()`, `requestDownloads()`, `preparePath()`), `logQuiet()`, `el()`, `restartAnimation()`, `whenLoaded()` and the layer stack (`addLayer`: Esc and click-outside for every panel, menu and dialog). |
+| `core.js` | The page's elements, the connection state (OFFLINE badge, `whenNetChanges`), `notify()`, SponsorBlock lookups, the server API (`api()`, `requestDownloads()`, `preparePath()`), `logQuiet()`, `el()`, `restartAnimation()`, `dialogKeys()` (a dialog's letter keys), `whenLoaded()` and the layer stack (`addLayer`: Esc and click-outside for every panel, menu and dialog). |
 | `playback.js` | `playVideo` (prepare, streaming, handover to the downloaded file), captions, adding links to the queue, seek / volume / speed / fullscreen basics, the system's media controls (Media Session). |
 | `settings-queue.js` | The `SETTINGS` table (load / save / dependent switches) and the queue's state: saving, restoring, the link to a saved playlist, Back / Next, Download all, Clear queue (with Undo). |
 | `side-panel.js` | Watch progress (and sending finished videos to YouTube history), the side panel's rows (`makeRow`, `makePlThumb`), queue statuses (one `/statuses` request), the Downloads list. |

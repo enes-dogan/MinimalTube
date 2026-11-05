@@ -330,6 +330,7 @@ video.addEventListener("ended", onVideoEnded);
 video.addEventListener("play", cancelUpNext);
 upNextNow.addEventListener("click", playUpNext);
 upNextCancel.addEventListener("click", userCancelUpNext);
+dialogKeys(upNextEl, { KeyP: upNextNow, KeyC: upNextCancel });
 addLayer({
   el: upNextEl,
   isOpen: () => upNextEl.classList.contains("show"),

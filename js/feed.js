@@ -113,6 +113,7 @@ cuYes.addEventListener("click", () => {
   if (ch) removeSubscription(ch);
 });
 cuNo.addEventListener("click", closeConfirmUnsub);
+dialogKeys(confirmUnsub, { KeyU: cuYes, KeyC: cuNo });
 addLayer({
   el: confirmUnsub,
   level: 4,
