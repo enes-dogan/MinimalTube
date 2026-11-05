@@ -465,6 +465,42 @@ def cache_maintenance_loop():
         time.sleep(CACHE_MAINTENANCE_INTERVAL_SECONDS)
         run_cache_maintenance()
 
+YOUTUBE_HOSTS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
+
+def youtube_ids(url: str) -> tuple:
+    """The video id and the playlist id in a YouTube link.
+
+    Args:
+        url (str): A link on youtube.com (any subdomain: www., m., music.), youtu.be or
+            youtube-nocookie.com, with or without "https://"; or a bare 11-character video id.
+            Watch, /shorts/, /live/, /embed/ and /v/ links all count.
+
+    Returns:
+        tuple: (video id or None, playlist id or None). Both are None for anything that isn't
+        a YouTube link, so a caller can refuse it before yt-dlp (which opens any site) sees it.
+    """
+    url = (url or "").strip()
+    if VIDEO_ID_RE.match(url):
+        return url, None
+    try:
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+    except ValueError:
+        return None, None
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in ("http", "https") or not any(
+            host == h or host.endswith("." + h) for h in YOUTUBE_HOSTS):
+        return None, None
+    query = parse_qs(parsed.query)
+    vid = query.get("v", [None])[0]
+    if host == "youtu.be":
+        vid = parsed.path.lstrip("/").split("/")[0]
+    else:
+        m = re.match(r"/(?:shorts|live|embed|v)/([A-Za-z0-9_-]{11})", parsed.path)
+        vid = m.group(1) if m else vid
+    lst = query.get("list", [None])[0]
+    return (vid if vid and VIDEO_ID_RE.match(vid) else None,
+            lst if lst and re.fullmatch(r"[A-Za-z0-9_-]{2,64}", lst) else None)
+
 def video_id_from_url(url: str):
     parsed = urlparse(url)
     if (parsed.hostname or "").endswith("youtu.be"):

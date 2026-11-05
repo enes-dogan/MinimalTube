@@ -11,6 +11,7 @@ import uuid
 
 import yt_dlp
 from flask import Flask, Response, jsonify, request, send_file
+from werkzeug.routing import BaseConverter
 from flask_cors import CORS
 
 NET_HEADER = "X-MinimalTube-Net"
@@ -83,7 +84,7 @@ from .media import (
     remove_video_files,
     subtitle_path,
     thumb_path,
-    video_id_from_url,
+    youtube_ids,
 )
 from .store import (
     clean_playlist_items,
@@ -119,8 +120,14 @@ from .subtitles import (
 )
 from .ytdlp_copy import install_latest, running_own_copy, up_to_date
 
+class VideoIdConverter(BaseConverter):
+    """<vid:video_id> in a route: only an 11-character YouTube id matches. Ids become file
+    names in the cache folder, and on Windows "\\" or "C:" in one would point outside it."""
+    regex = r"[A-Za-z0-9_-]{11}"
+
 
 app = Flask(__name__)
+app.url_map.converters["vid"] = VideoIdConverter
 CORS(app, origins=[EXTENSION_ORIGIN_RE], expose_headers=[NET_HEADER])
 STARTED = time.time()
 
@@ -145,12 +152,14 @@ def add_net_state(response):
 
 @app.route("/prepare")
 def prepare():
-    url = request.args.get("url", "").strip()
-    if not url:
-        return jsonify({"error": "missing 'url' query parameter"}), 400
+    # Only YouTube videos: yt-dlp would open any site (even ones on the home network) for any
+    # link, and a download that isn't YouTube's never shows in Downloads.
+    quick_id, _list = youtube_ids(request.args.get("url", ""))
+    if not quick_id:
+        return jsonify({"error": "not a YouTube video link"}), 400
+    url = f"https://www.youtube.com/watch?v={quick_id}"
 
-    quick_id = video_id_from_url(url)
-    if quick_id and VIDEO_ID_RE.match(quick_id) and cached_path(quick_id).exists():
+    if cached_path(quick_id).exists():
         title = titles.get(quick_id)
         with jobs_lock:
             jobs[quick_id] = {"status": "ready", "percent": 100, "title": title}
@@ -159,15 +168,14 @@ def prepare():
             "status": "ready", "percent": 100, "title": title, "video_id": quick_id,
             "has_subtitles": subtitle_path(quick_id).exists(),
         })
-    if quick_id and VIDEO_ID_RE.match(quick_id):
-        with jobs_lock:
-            running = dict(jobs.get(quick_id) or {})
-        live = registered_stream(quick_id)
-        if live and running.get("status") in ("downloading", "merging"):
-            running.update(live, video_id=quick_id,
-                           has_subtitles=subtitle_path(quick_id).exists())
-            running.setdefault("title", titles.get(quick_id))
-            return jsonify(running)
+    with jobs_lock:
+        running = dict(jobs.get(quick_id) or {})
+    live = registered_stream(quick_id)
+    if live and running.get("status") in ("downloading", "merging"):
+        running.update(live, video_id=quick_id,
+                       has_subtitles=subtitle_path(quick_id).exists())
+        running.setdefault("title", titles.get(quick_id))
+        return jsonify(running)
 
     try:
         info = video_info(url)
@@ -261,7 +269,7 @@ def with_fresh_stream(video_id: str, fn):
             print(f"[live] renewed the stream URLs of {video_id}")
     return fn()
 
-@app.route("/live/<video_id>/<format_id>/index")
+@app.route("/live/<vid:video_id>/<format_id>/index")
 def live_index(video_id, format_id):
     try:
         index = with_fresh_stream(video_id, lambda: stream_index(video_id, format_id))
@@ -271,7 +279,7 @@ def live_index(video_id, format_id):
         return jsonify({"error": "unknown stream"}), 404
     return jsonify(index)
 
-@app.route("/live/<video_id>/<format_id>")
+@app.route("/live/<vid:video_id>/<format_id>")
 def live_bytes(video_id, format_id):
     entry = stream_format(video_id, format_id)
     if not entry:
@@ -300,12 +308,10 @@ def live_bytes(video_id, format_id):
     return Response(body(), status=200, headers=headers,
                     mimetype=entry["mime"].split(";")[0])
 
-@app.route("/thumb/<video_id>")
+@app.route("/thumb/<vid:video_id>")
 def thumb(video_id):
     """A video's thumbnail from the cache folder. The first time it's asked for, it's fetched
     from YouTube and kept there, so every thumbnail shown once also shows offline."""
-    if not VIDEO_ID_RE.match(video_id):
-        return "", 404
     p = thumb_path(video_id)
     if p.exists():
         mark_thumbnail_used(p)
@@ -318,9 +324,11 @@ def thumb(video_id):
 
 @app.route("/playlist")
 def playlist():
-    url = request.args.get("url", "").strip()
-    if not url:
-        return jsonify({"error": "missing 'url' query parameter"}), 400
+    current_id, list_id = youtube_ids(request.args.get("url", ""))
+    if not list_id:
+        return jsonify({"error": "not a YouTube playlist link"}), 400
+    url = (f"https://www.youtube.com/watch?v={current_id}&list={list_id}" if current_id
+           else f"https://www.youtube.com/playlist?list={list_id}")
 
     try:
         with ydl(skip_download=True, noplaylist=False, extract_flat="in_playlist") as y:
@@ -344,7 +352,6 @@ def playlist():
             "url": f"https://www.youtube.com/watch?v={vid}",
         })
 
-    current_id = video_id_from_url(url)
     if current_id:
         current_index = next((i for i, it in enumerate(items) if it["id"] == current_id), -1)
     else:
@@ -608,10 +615,10 @@ def playlists_set_items_order(playlist_id):
         result = playlist_public(playlist)
     return jsonify({"playlist": result})
 
-@app.route("/playlists/<playlist_id>/items/<video_id>", methods=["DELETE"])
+@app.route("/playlists/<playlist_id>/items/<vid:video_id>", methods=["DELETE"])
 def playlists_remove_item(playlist_id, video_id):
-    if not PLAYLIST_ID_RE.match(playlist_id) or not VIDEO_ID_RE.match(video_id):
-        return jsonify({"error": "invalid playlist or video id"}), 400
+    if not PLAYLIST_ID_RE.match(playlist_id):
+        return jsonify({"error": "invalid playlist id"}), 400
     with playlists_lock:
         playlist = next((p for p in saved_playlists if p.get("id") == playlist_id), None)
         if not playlist:
@@ -700,11 +707,9 @@ def feed():
     return jsonify({"items": items, "has_more": has_more, "errors": errors, "offline": offline,
                     "pending": pending, "subscribers": CHANNEL_FOLLOWERS.get(channel) if channel else None})
 
-@app.route("/video/<video_id>", methods=["DELETE"])
+@app.route("/video/<vid:video_id>", methods=["DELETE"])
 def delete_video(video_id):
     """Delete a video's files. If it's still downloading, abort the download."""
-    if not VIDEO_ID_RE.match(video_id):
-        return jsonify({"error": "invalid video id"}), 400
 
     with jobs_lock:
         job = jobs.pop(video_id, None)
@@ -737,7 +742,7 @@ def job_status(video_id: str):
     job["has_subtitles"] = subtitle_path(video_id).exists()
     return job
 
-@app.route("/status/<video_id>")
+@app.route("/status/<vid:video_id>")
 def status(video_id):
     job = job_status(video_id)
     if job is None:
@@ -753,31 +758,27 @@ def statuses():
     ids = [v for v in (request.args.get("ids") or "").split(",") if VIDEO_ID_RE.match(v)]
     return jsonify({"statuses": {v: job_status(v) for v in ids[:STATUSES_MAX]}})
 
-@app.route("/stream/<video_id>")
+@app.route("/stream/<vid:video_id>")
 def stream(video_id):
     path = cached_path(video_id)
     if not path.exists():
         return jsonify({"error": "not ready yet"}), 404
     return send_file(path, mimetype="video/mp4", conditional=True)
 
-@app.route("/subtitles/<video_id>/state")
+@app.route("/subtitles/<vid:video_id>/state")
 def subtitles_state(video_id):
     """Captions of a video: there yet, and has the caption rule decided (track or none)?"""
-    if not VIDEO_ID_RE.match(video_id):
-        return jsonify({"error": "invalid video id"}), 400
     return jsonify({"has": subtitle_path(video_id).exists(), "decided": sublang_current(video_id)})
 
-@app.route("/subtitles/<video_id>")
+@app.route("/subtitles/<vid:video_id>")
 def subtitles(video_id):
     path = subtitle_path(video_id)
     if not path.exists():
         return jsonify({"error": "no subtitles for this video"}), 404
     return send_file(path, mimetype="text/vtt")
 
-@app.route("/description/<video_id>")
+@app.route("/description/<vid:video_id>")
 def description(video_id):
-    if not VIDEO_ID_RE.match(video_id):
-        return jsonify({"error": "invalid video id"}), 400
 
     path = description_path(video_id)
     if path.exists():
@@ -816,11 +817,9 @@ def description(video_id):
     meta = remember_meta(video_id, info)
     return jsonify({"description": text, "date": date, **meta_public(meta)})
 
-@app.route("/channel-of/<video_id>")
+@app.route("/channel-of/<vid:video_id>")
 def channel_of(video_id):
     """The uploader of a video: from the saved info, else one yt-dlp lookup (then saved)."""
-    if not VIDEO_ID_RE.match(video_id):
-        return jsonify({"error": "invalid video id"}), 400
     meta = cached_meta(video_id) or {}
     if not meta.get("channel_id"):
         try:
@@ -835,11 +834,9 @@ def net():
     """Whether YouTube can be reached at all (the player's OFFLINE badge)."""
     return jsonify({"online": internet_up(max_age=1)})
 
-@app.route("/chapters/<video_id>")
+@app.route("/chapters/<vid:video_id>")
 def chapters(video_id):
     """Chapter list ([] when the video has none). Cached; fetched once for older downloads."""
-    if not VIDEO_ID_RE.match(video_id):
-        return jsonify({"error": "invalid video id"}), 400
     path = chapters_path(video_id)
     if path.exists():
         try:
@@ -858,12 +855,10 @@ def chapters(video_id):
     remember_release_date(video_id, info)
     return jsonify({"chapters": clean_chapters(info.get("chapters"), info.get("duration"))})
 
-@app.route("/sponsorblock/<video_id>")
+@app.route("/sponsorblock/<vid:video_id>")
 def sponsorblock(video_id):
     """Sponsor segments: SponsorBlock's current ones while online, else the ones kept with the
     download."""
-    if not VIDEO_ID_RE.match(video_id):
-        return jsonify({"error": "invalid video id"}), 400
     if is_online():
         try:
             segments = fetch_sponsor_segments(video_id)
