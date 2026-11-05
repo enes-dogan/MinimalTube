@@ -451,13 +451,28 @@
 #clearQueueBtn:active {
   transform: scale(0.94);
 }
+/* The linked playlist's name hangs under "Queue", out of the row, so a long one never pushes
+   the buttons aside: it's cut off where the buttons start. */
+#playlistSection .plHeadTitle {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+#playlistSection .plHeadTitle:has(#queuePlName:not(:empty)) {
+  transform: translateY(-7px);
+}
 #queuePlName {
-  margin-left: 6px;
-  max-width: 110px;
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  right: 0;
+  margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--fs-xs);
   font-weight: 500;
+  line-height: 1.25;
   color: var(--accent);
 }
 #queuePlName:empty {
