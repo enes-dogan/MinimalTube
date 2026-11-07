@@ -1,11 +1,11 @@
 """MinimalTube server - subtitles."""
-import os
 import threading
 from pathlib import Path
 
 from .config import CACHE_DIR
 from .media import subtitle_path
 from .sublang import choose_subtitle_track
+from .system import replace_file
 from .ytinfo import video_info, ydl
 
 SUBLANG_RULE = "2"
@@ -31,7 +31,7 @@ def download_subtitle(video_id: str, url: str, lang: str, is_auto: bool):
     produced = CACHE_DIR / f"{video_id}.{lang}.vtt"
     try:
         if produced.exists() and produced != subtitle_path(video_id):
-            os.replace(produced, subtitle_path(video_id))
+            replace_file(produced, subtitle_path(video_id))
     except OSError as e:
         print(f"[subtitles] {video_id}: couldn't finalize file: {e}")
 

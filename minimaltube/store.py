@@ -1,6 +1,5 @@
 """MinimalTube server - store."""
 import json
-import os
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -17,6 +16,7 @@ from .config import (
     VIDEO_ID_RE,
 )
 from .media import cached_path, card_info, thumbnail_url, video_id_from_url
+from .system import replace_file
 from .ytinfo import video_meta
 
 
@@ -25,7 +25,7 @@ def write_json_atomic(path, data, label: str):
     try:
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
+        replace_file(tmp, path)
     except OSError as e:
         print(f"[{label}] couldn't save {path.name}: {e}")
 

@@ -30,7 +30,7 @@ async function addToQueue() {
   if (!res || !res.ok) {
     warning.textContent =
       res?.error ||
-      `MinimalTube server isn't running at ${res?.serverBase || DEFAULT_SERVER} and couldn't be started. Run ./install.sh again.`;
+      `MinimalTube server isn't running at ${res?.serverBase || DEFAULT_SERVER} and couldn't be started. Run MinimalTube's installer again (${/Windows/.test(navigator.userAgent) ? "install.cmd" : /Mac OS X|Macintosh/.test(navigator.userAgent) ? "install.command" : "./install.sh"}).`;
     warning.style.display = "block";
     return;
   }

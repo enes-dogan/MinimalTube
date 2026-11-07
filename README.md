@@ -66,6 +66,10 @@ browser); everything after that is the same.
    curl -fsSL https://deno.land/install.sh | DENO_INSTALL="$HOME/.local" sh
    ```
 
+   Missing some of them? The installer (step 4) fills in what isn't there, without sudo:
+   MinimalTube's own Python with Flask (in `~/.local/share/minimaltube/`) and its own ffmpeg
+   and Deno.
+
    On both: the server runs on waitress (`python-waitress` / `python3-waitress`), which
    keeps long streams steady; without it, it falls back to Flask's built-in server. yt-dlp
    uses Deno to solve YouTube's player challenges.
@@ -101,6 +105,40 @@ browser); everything after that is the same.
 
 Run `./install.sh` again if you move this folder.
 
+## Install (Windows 11)
+
+1. **A Chromium-based browser:** Google Chrome, Microsoft Edge, Brave, Vivaldi or Chromium.
+2. **Load the extension:** open `chrome://extensions` (`edge://extensions` in Edge), switch on
+   *Developer mode*, click *Load unpacked* and pick this folder.
+3. **Run the installer:** double-click `install.cmd`. If Windows says it protected your PC
+   (the folder came from the internet), click *More info* → *Run anyway*.
+
+   It needs no admin rights and changes nothing outside your user folder: MinimalTube's own
+   Python, yt-dlp, ffmpeg and Deno go in `%LOCALAPPDATA%\MinimalTube` (about 200 MB, fetched
+   the first time), the extension gets permission to start the server, and **MinimalTube** is
+   added to the Start menu.
+4. **Reload the extension** and start MinimalTube from the Start menu.
+
+Run `install.cmd` again if you move this folder.
+
+## Install (macOS)
+
+1. **A Chromium-based browser** in Applications: Google Chrome, Brave, Microsoft Edge,
+   Vivaldi or Chromium.
+2. **Load the extension:** open `chrome://extensions`, switch on *Developer mode*, click
+   *Load unpacked* and pick this folder.
+3. **Run the installer:** double-click `install.command` (or run `./install.sh` in
+   Terminal). If macOS won't open it because it came from the internet, right-click it →
+   *Open* → *Open*.
+
+   It needs no admin password: MinimalTube's own Python and yt-dlp go in
+   `~/Library/Application Support/MinimalTube`, with ffmpeg and Deno from Homebrew when you
+   have them and its own otherwise. The extension gets permission to start the server, and
+   **MinimalTube** is added to `~/Applications` (Launchpad, Spotlight).
+4. **Reload the extension** and open MinimalTube from Launchpad or Spotlight.
+
+Run the installer again if you move this folder.
+
 ## Using it
 
 - **Subscriptions / Playlists / Downloads** are the tabs of the browse page. Click a
@@ -113,7 +151,9 @@ Run `./install.sh` again if you move this folder.
 - **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
   another program already uses it.
 
-## Where things are (Linux)
+## Where things are
+
+On Linux:
 
 | What | Where |
 |---|---|
@@ -124,11 +164,21 @@ Run `./install.sh` again if you move this folder.
 | The application-menu entry | `~/.local/share/applications/minimaltube.desktop` |
 | What lets the extension start the server | `~/.config/<browser>/NativeMessagingHosts/com.minimaltube.host.json` |
 
+On macOS and Windows:
+
+| What | macOS | Windows |
+|---|---|---|
+| Downloads, thumbnails, captions, server log | `~/Library/Caches/MinimalTube/` | `%LOCALAPPDATA%\MinimalTube\Cache\` |
+| Playlists, subscriptions, the order of your downloads | `~/Library/Application Support/MinimalTube/` | `%APPDATA%\MinimalTube\` |
+| MinimalTube's own Python, yt-dlp, ffmpeg and Deno | `~/Library/Application Support/MinimalTube/` | `%LOCALAPPDATA%\MinimalTube\` |
+| The app | `~/Applications/MinimalTube.app` | Start menu → MinimalTube |
+| What lets the extension start the server | `~/Library/Application Support/<browser>/NativeMessagingHosts/` | registry: `HKCU\Software\<browser>\NativeMessagingHosts\com.minimaltube.host` |
+
 Downloads older than 60 days are removed together with their thumbnails, captions and other
 saved info, thumbnails that nothing has shown for 60 days go too, and the folder is kept
 under 64 GB (`minimaltube/config.py`).
 
-## Updating (Linux)
+## Updating
 
 YouTube changes often, so keep yt-dlp current: Settings → **Update yt-dlp** installs the
 newest one (no sudo) and restarts the server. The rest updates with your system
@@ -144,7 +194,11 @@ pkill -f "server.py --host 127.0.0.1"
 
 (A server you started by hand in a terminal stops with Ctrl+C there.)
 
-## Troubleshooting (Linux)
+On macOS and Windows, **Update yt-dlp** and **Restart server** work the same. To stop the
+server by hand: on macOS the `pkill` line above; on Windows, end *python.exe* in Task Manager.
+Running the installer again updates the server's Python packages too.
+
+## Troubleshooting
 
 - **"MinimalTube server isn't running":** check `~/.cache/minimaltube/server.log`, or
   start it by hand to see its errors:
@@ -155,7 +209,10 @@ pkill -f "server.py --host 127.0.0.1"
 
 - **Nothing happens from the application menu, or the server never starts:** Check the
   extensions ID. Copy it from `chrome://extensions` and run
-  `./install.sh <extension-id>` again. A Flatpak or Snap browser can't start the server.
+  `./install.sh <extension-id>` (Windows: `install.cmd <extension-id>`) again. A Flatpak or
+  Snap browser can't start the server. A browser installed after the installer ran needs the
+  installer run once more.
+- **macOS / Windows:** the server log is in the cache folder above (`server.log`).
 - **A video won't play:** yt-dlp is probably out of date: Settings → **Update yt-dlp**.
 - **Small errors that don't interrupt anything** are logged to the extension console:
   right-click the player → *Inspect* (or *service worker* on `chrome://extensions` for
@@ -170,5 +227,8 @@ pkill -f "server.py --host 127.0.0.1"
 - `css/`: the stylesheets, built on the tokens in `css/tokens.css`. See `css/README.md`.
 - `server.py` + `minimaltube/`: the server (its Python packages are in `requirements.txt`).
   See `minimaltube/README.md`.
-- `minimaltube_host.py` + `install.sh`: the native messaging host that starts the server,
-  and its installer (for Linux).
+- `minimaltube_host.py`: the native messaging host that starts the server.
+- `install.py`: the installer, the same on every OS. `install.sh` (Linux, macOS; double-click
+  `install.command` on macOS) and `install.cmd` + `install.ps1` (Windows) find or fetch the
+  Python it runs with. What differs per OS at runtime (folders, PATH, starting the server, the
+  file manager) is in `minimaltube/system.py`.

@@ -2,8 +2,6 @@
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 import threading
 import time
@@ -100,6 +98,8 @@ from .store import (
     write_playlists,
 )
 from .net import internet_up, is_online
+from .system import WINDOWS, spawn_detached
+from .system import open_folder as show_folder
 from .ytinfo import video_info, ydl
 from .live import (
     UpstreamError,
@@ -884,17 +884,8 @@ def sponsorblock(video_id):
 @app.route("/open-folder")
 def open_folder():
     """Open the folder where downloaded videos are kept in the file manager."""
-    quiet = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                 stderr=subprocess.DEVNULL, start_new_session=True)
     try:
-        for fm in ("dolphin", "nautilus", "nemo", "thunar", "pcmanfm"):
-            if shutil.which(fm):
-                subprocess.Popen([fm, str(CACHE_DIR)], **quiet)
-                break
-        else:
-            if not shutil.which("xdg-open"):
-                return jsonify({"error": "no file manager found (tried dolphin, nautilus, xdg-open)"}), 500
-            subprocess.Popen(["xdg-open", str(CACHE_DIR)], **quiet)
+        show_folder(CACHE_DIR)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify({"status": "ok", "path": str(CACHE_DIR)})
@@ -925,10 +916,16 @@ def schedule_restart():
 def restart_server():
     sys.stdout.flush()
     sys.stderr.flush()
-    # POSIX replaces the process in place: same PID, same terminal or log. Windows has no real
-    # exec (os.execv starts a new process and ends this one), so there the new server will have
-    # to be started once this one has let go of the port.
-    os.execv(sys.executable, getattr(sys, "orig_argv", None) or [sys.executable, "-u", *sys.argv])
+    argv = list(getattr(sys, "orig_argv", None) or [sys.executable, "-u", *sys.argv])
+    if not WINDOWS:
+        # POSIX replaces the process in place: same PID, same terminal or log
+        os.execv(sys.executable, argv)
+    # Windows has no real exec: a new server starts (and waits for this one to let go of the
+    # port), into the same log, and this one ends
+    if "--wait-for-port" not in argv:
+        argv.append("--wait-for-port")
+    spawn_detached(argv, cwd=os.getcwd(), stdout=sys.stdout, stderr=sys.stderr)
+    os._exit(0)
 
 @app.route("/health")
 def health():

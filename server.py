@@ -11,8 +11,10 @@ this file; see its docstring for what each module covers.
 
 import argparse
 import shutil
+import socket
 import sys
 import threading
+import time
 from pathlib import Path
 
 # This folder is also the extension, and Chromium refuses to load one that holds a name
@@ -23,41 +25,60 @@ REQUIREMENTS = Path(__file__).resolve().parent / "requirements.txt"
 
 
 def check_dependencies():
+    from minimaltube.system import installer_hint
+
+    # the installer sets all of this up on every OS
+    again = f"Run the installer again ({installer_hint()}) to set it up."
     try:
         import flask  # noqa: F401
         import flask_cors  # noqa: F401
     except ImportError:
         sys.exit(
-            "Missing dependencies. Install with:\n"
-            f"  pip install --break-system-packages -r {REQUIREMENTS}\n"
-            "or, on CachyOS/Arch:\n"
-            "  sudo pacman -S python-pip python-flask python-flask-cors python-waitress ffmpeg deno"
+            f"This Python ({sys.executable}) is missing Flask / Flask-CORS. {again}\n"
+            f"By hand: pip install -r {REQUIREMENTS}"
+            + ("\n(CachyOS/Arch: sudo pacman -S python-flask python-flask-cors python-waitress)"
+               if sys.platform.startswith("linux") else "")
         )
     try:
         import yt_dlp  # noqa: F401
     except ImportError:
         sys.exit(
             "yt-dlp isn't available: MinimalTube has no copy of its own yet, and there's no "
-            "system-wide yt-dlp either.\nWith pip installed, get MinimalTube's copy with:\n"
-            f"  python3 {Path(__file__).resolve()} --update-yt-dlp"
+            f"system-wide yt-dlp either. {again}\nOr get MinimalTube's copy with:\n"
+            f"  {Path(sys.executable).name} {Path(__file__).resolve()} --update-yt-dlp"
         )
     if shutil.which("ffmpeg") is None:
-        sys.exit(
-            "ffmpeg is required (to merge separate video+audio streams) but was "
-            "not found on PATH.\nInstall it with:\n  sudo pacman -S ffmpeg"
-        )
+        sys.exit(f"ffmpeg is required (to merge separate video+audio streams) but wasn't found. {again}")
+
+
+def wait_for_port(host, port, seconds=20):
+    """A restart on Windows starts this server before the old one has let go of the port."""
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, port))
+                return
+            except OSError:
+                time.sleep(0.25)
 
 
 def main():
     parser = argparse.ArgumentParser(description="MinimalTube local server")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--wait-for-port", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--update-yt-dlp", action="store_true",
                         help="install the newest yt-dlp as MinimalTube's own copy (used from "
                              "the server's next start), then exit")
     args = parser.parse_args()
 
+    if args.wait_for_port:  # first: the old server's files (its yt-dlp, its downloads) are let go too
+        wait_for_port(args.host, args.port)
+    from minimaltube.system import use_own_tools
     from minimaltube.ytdlp_copy import install_latest, running_own_copy, use_own_copy
+
+    use_own_tools()  # ffmpeg, ffprobe and deno: MinimalTube's own ones (if it fetched any) first
 
     if args.update_yt_dlp:
         try:
@@ -108,7 +129,7 @@ def serve(app, host, port):
         from waitress import serve as waitress_serve
     except ImportError:
         print("waitress isn't installed: using Flask's built-in server "
-              "(sudo pacman -S python-waitress for the steadier one).")
+              "(the installer sets up the steadier one: pip install waitress).")
         app.run(host=host, port=port, threaded=True)
         return
     waitress_serve(app, host=host, port=port, threads=WSGI_THREADS, ident="MinimalTube")

@@ -2,7 +2,6 @@
 from __future__ import annotations  # `str | None` annotations on Python 3.9
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -22,6 +21,7 @@ from .config import (
     CACHE_MAX_BYTES,
     VIDEO_ID_RE,
 )
+from .system import replace_file
 from .ytinfo import video_info, video_meta
 
 
@@ -181,7 +181,7 @@ def _write_meta(video_id: str, meta: dict):
     # through a temp file: lookups for whole playlists read these while others write them
     tmp = CACHE_DIR / f"{video_id}.meta.{threading.get_ident()}.tmp"
     tmp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, meta_path(video_id))
+    replace_file(tmp, meta_path(video_id))
 
 def cached_meta(video_id: str):
     try:
@@ -421,7 +421,7 @@ def cleanup_old_files():
             if f.stat().st_mtime < cutoff:
                 remove_download(f)
                 print(f"[cache] removed (older than {CACHE_MAX_AGE_DAYS}d): {f.name}")
-        except FileNotFoundError:
+        except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
             pass
 
 def enforce_cache_size_limit():
@@ -435,7 +435,7 @@ def enforce_cache_size_limit():
             remove_download(f)
             total -= size
             print(f"[cache] removed (size cap {CACHE_MAX_BYTES // (1024**3)}GB): {f.name}")
-        except FileNotFoundError:
+        except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
             pass
         i += 1
 
@@ -450,7 +450,7 @@ def cleanup_unused_thumbnails():
                     and f.stat().st_mtime < cutoff):
                 f.unlink()
                 removed += 1
-        except FileNotFoundError:
+        except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
             pass
     if removed:
         print(f"[cache] removed {removed} thumbnails not shown for {CACHE_MAX_AGE_DAYS}d")

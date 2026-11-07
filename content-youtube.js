@@ -220,7 +220,7 @@
     else if (res.ok === false)
       notice(
         res.error ||
-          `MinimalTube server isn't running (${res.serverBase}) and couldn't be started. Run ./install.sh again.`,
+          `MinimalTube server isn't running (${res.serverBase}) and couldn't be started. Run MinimalTube's installer again (${/Windows/.test(navigator.userAgent) ? "install.cmd" : /Mac OS X|Macintosh/.test(navigator.userAgent) ? "install.command" : "./install.sh"}).`,
       );
     else return false;
     return true;

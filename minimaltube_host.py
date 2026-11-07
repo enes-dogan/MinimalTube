@@ -6,6 +6,9 @@ Chrome talks to this script over native messaging (one JSON message in, one out)
   {"action": "ping"}
 
 `minimaltube_host.py --start-server [PORT]` does the same from a terminal or launcher.
+
+The installer registers it with the browsers through a small launcher that runs it with the
+Python the server uses (on Windows and macOS, MinimalTube's own).
 """
 
 from __future__ import annotations
@@ -15,28 +18,20 @@ import json
 import os
 import socket
 import struct
-import subprocess
 import sys
 import time
 import urllib.request
 from pathlib import Path
 
+# This folder is also the extension, and Chromium refuses to load one that holds a name starting
+# with "_": never write bytecode (__pycache__) here, not even for minimaltube.system below.
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from minimaltube.system import WINDOWS, cache_dir, spawn_detached, use_own_tools  # noqa: E402
+
 DEFAULT_SERVER_PORT = 7860
 # Another program may hold the preferred port: the server then takes the next free one of these.
 PORT_RANGE = 10
-
-
-def augment_path() -> None:
-    """Browsers started from a desktop launcher often have a minimal PATH (the server needs ffmpeg)."""
-    home = Path.home()
-    extra = [home / ".local" / "bin", home / "bin", Path("/usr/local/bin"),
-             Path("/usr/bin"), Path("/bin"), Path("/snap/bin"),
-             Path("/var/lib/flatpak/exports/bin"), home / ".local/share/flatpak/exports/bin"]
-    current = os.environ.get("PATH", "").split(os.pathsep)
-    for d in extra:
-        if str(d) not in current:
-            current.append(str(d))
-    os.environ["PATH"] = os.pathsep.join(p for p in current if p)
 
 
 def _read_message() -> dict | None:
@@ -101,17 +96,17 @@ def start_server(port: int) -> dict:
         raise RuntimeError(f"ports {ports.start}-{ports.stop - 1} are all taken by other programs")
 
     script = find_server_script()
-    log_dir = Path.home() / ".cache" / "minimaltube"
+    log_dir = cache_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     log = open(log_dir / "server.log", "ab")
-    proc = subprocess.Popen(
-        # -u: every line reaches the log as it's printed (a buffered one is lost on pkill)
-        [sys.executable, "-u", str(script), "--host", "127.0.0.1", "--port", str(port)],
-        cwd=str(script.parent),
-        stdin=subprocess.DEVNULL,
+    proc = spawn_detached(
+        # -u: every line reaches the log as it's printed (a buffered one is lost when it's stopped).
+        # -X utf8: files and the log are UTF-8 on every OS (Windows would use its code page).
+        # -B: no __pycache__ in this folder (see above).
+        [sys.executable, "-X", "utf8", "-u", "-B", str(script), "--host", "127.0.0.1", "--port", str(port)],
+        cwd=script.parent,
         stdout=log,  # never inherit our stdout: it's the native-messaging channel
         stderr=log,
-        start_new_session=True,  # outlive this short-lived host process
     )
     return {"ok": True, "pid": proc.pid, "port": port, "log": str(log_dir / "server.log")}
 
@@ -135,8 +130,13 @@ def run_native_host() -> int:
 
 
 def main() -> int:
-    augment_path()
+    use_own_tools()  # browsers started from a launcher often have a minimal PATH (the server needs ffmpeg)
     if len(sys.argv) > 1 and sys.argv[1].startswith(("chrome-extension://", "moz-extension://")):
+        if WINDOWS:  # the messages are binary: no newline translation on the pipes
+            import msvcrt
+
+            msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+            msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
         return run_native_host()
 
     parser = argparse.ArgumentParser(description="Start MinimalTube's local server.")

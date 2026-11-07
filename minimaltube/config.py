@@ -2,35 +2,26 @@
 import base64
 import hashlib
 import json
-import os
 import re
 import shutil
-import sys
 from pathlib import Path
 
-CACHE_DIR = Path.home() / ".cache" / "minimaltube"
+from .system import app_dir, cache_dir, data_dir
+
+# Per OS: see system.py
+CACHE_DIR = cache_dir()
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _data_dir() -> Path:
-    if sys.platform == "win32":
-        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "MinimalTube"
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "MinimalTube"
-    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "minimaltube"
-
-
-# What the user made (playlists, subscriptions, the Downloads order) is kept apart from the cache,
-# which cache cleaners empty.
-DATA_DIR = _data_dir()
+DATA_DIR = data_dir()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+APP_DIR = app_dir()
+APP_DIR.mkdir(parents=True, exist_ok=True)
 for _name in ("playlists.json", "subscriptions.json", "order.json"):  # older versions kept them in the cache
     if (CACHE_DIR / _name).exists() and not (DATA_DIR / _name).exists():
         shutil.move(CACHE_DIR / _name, DATA_DIR / _name)
 
 
 def _extension_origin_re():
-    # The id Chrome gives an extension with a "key" (install.sh works it out the same way): the
+    # The id Chrome gives an extension with a "key" (install.py works it out the same way): the
     # SHA-256 of the key, its first 32 hex digits written with the letters a-p.
     try:
         manifest = json.loads((Path(__file__).resolve().parent.parent / "manifest.json")

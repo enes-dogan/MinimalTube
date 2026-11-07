@@ -1,5 +1,6 @@
 """MinimalTube local server.
 
+system    what differs per OS: folders, PATH, starting the server, the file manager
 config    paths, limits and the regexes shared by everything else
 ytinfo    the one place that runs yt-dlp: full and light lookups of a video
 ytdlp_copy MinimalTube's own yt-dlp (pip, in the data folder) and its updates

@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
-# MinimalTube installer. Double-click it (or run ./install.sh) once, and again if
-# you move this folder.
+# MinimalTube installer for Linux and macOS (on Windows: install.cmd). Run it once, and again if
+# you move this folder: ./install.sh (on macOS, double-clicking install.command does the same).
 #
-# MinimalTube's extension ID follows from the "key" in manifest.json, so it's the same on
-# every machine and there is nothing to fill in. (A copy without that key gets a different
-# ID: pass it on the command line, ./install.sh <id> [<id> ...].)
+# It finds the Python the server will run on, then install.py does the rest with it (the server's
+# packages and its own yt-dlp; ffmpeg and deno when the system has none; the native host the
+# extension starts the server through; MinimalTube in the app menu / Applications):
+#   - Linux: the system python3 when it already has Flask (as on Arch with python-flask);
+#     otherwise MinimalTube's own Python
+#   - macOS: MinimalTube's own Python (the one macOS comes with is too old)
+# MinimalTube's own Python is a standalone CPython build (python-build-standalone) in
+# MinimalTube's app folder: no admin rights, nothing installed system-wide.
+# (MINIMALTUBE_OWN_PYTHON=1 gives it its own Python on Linux too.)
 #
-# What it does:
-#   1. registers minimaltube_host.py as a native messaging host, so the extension can
-#      start server.py automatically
-#   2. adds MinimalTube to the application menu (opens the player as an app window; the
-#      extension starts the server when the player opens)
+# The extension ID follows from the "key" in manifest.json, so there's nothing to fill in; a copy
+# without that key passes its ID: ./install.sh <id> [<id> ...]
 set -euo pipefail
 
-# Started by double-click (no terminal)? Re-launch inside one so output is visible.
-if [ ! -t 1 ] && [ -z "${MINIMALTUBE_IN_TERMINAL:-}" ]; then
+OS="$(uname -s)"
+
+# Linux, started by double-click (no terminal)? Re-launch inside one so output is visible.
+if [ "$OS" = Linux ] && [ ! -t 1 ] && [ -z "${MINIMALTUBE_IN_TERMINAL:-}" ]; then
   export MINIMALTUBE_IN_TERMINAL=1
   self="$(readlink -f "${BASH_SOURCE[0]}")"
   for term in konsole gnome-terminal kgx xfce4-terminal mate-terminal lxterminal alacritty kitty xterm; do
@@ -34,157 +39,83 @@ if [ -t 0 ] && [ -t 1 ]; then
 fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOST_PATH="$DIR/minimaltube_host.py"
-HOST_NAME="com.minimaltube.host"
+case "$OS" in
+  Darwin) APP_DIR="$HOME/Library/Application Support/MinimalTube" ;;
+  *) APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/minimaltube" ;;
+esac
+OWN_PY="$APP_DIR/python/bin/python3"
+# used when GitHub can't be asked for the newest build
+PBS_TAG=20261026
+PBS_PYTHON=3.13.18
 
-chmod +x "$HOST_PATH"
-
-# ---- extension IDs -----------------------------------------------------------
-# The ID Chrome gives an extension with a "key": the SHA-256 of that public key, its first
-# 32 hex digits written with the letters a-p.
-manifest_id() {
-  python3 - "$DIR/manifest.json" <<'PY' 2>/dev/null || true
-import base64, hashlib, json, sys
-key = json.load(open(sys.argv[1])).get("key")
-if key:
-    digest = hashlib.sha256(base64.b64decode(key)).hexdigest()[:32]
-    print(digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop")))
-PY
-}
-IDS=("$@")
-if [ "${#IDS[@]}" -eq 0 ]; then
-  KEY_ID="$(manifest_id)"
-  [ -n "$KEY_ID" ] && IDS=("$KEY_ID")
-fi
-if [ "${#IDS[@]}" -eq 0 ] && [ -t 0 ]; then
-  echo "Open chrome://extensions, enable Developer mode and copy the ID of MinimalTube."
-  read -rp "Extension ID: " typed
-  [ -n "$typed" ] && IDS=("$typed")
-fi
-for id in "${IDS[@]}"; do
-  if ! [[ "$id" =~ ^[a-p]{32}$ ]]; then
-    echo "Error: '$id' doesn't look like a Chrome extension ID (32 letters a-p)." >&2
-    exit 1
+fetch() { # url file
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --retry 2 -o "$2" "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$2" "$1"
+  else
+    echo "Error: neither curl nor wget is installed." >&2
+    return 1
   fi
-done
-if [ "${#IDS[@]}" -eq 0 ]; then
-  echo "Error: no extension ID: manifest.json has no \"key\". Pass the ID shown at" >&2
-  echo "       chrome://extensions: ./install.sh <id>" >&2
-  exit 1
-fi
-APP_ID="${IDS[0]}"   # used for the application-menu entry
-echo "Extension ID: $APP_ID"
-
-ORIGINS=""
-for id in "${IDS[@]}"; do
-  ORIGINS+="${ORIGINS:+, }\"chrome-extension://$id/\""
-done
-
-# ---- sanity checks -----------------------------------------------------------
-[ -f "$DIR/server.py" ] || echo "Warning: server.py not found next to install.sh - auto-start won't work (or set MINIMALTUBE_SERVER)."
-command -v ffmpeg >/dev/null || echo "Warning: 'ffmpeg' not found in PATH"
-python3 -c "import flask, flask_cors" 2>/dev/null \
-  || echo "Warning: python3 is missing flask / flask-cors (needed by server.py)."
-
-# ---- MinimalTube's own yt-dlp ------------------------------------------------
-# pip puts it in MinimalTube's data folder, so updating it (Settings -> Update yt-dlp) never
-# needs sudo; a system-wide yt-dlp is only the fallback.
-if python3 -c "import pip" 2>/dev/null; then
-  echo "Installing MinimalTube's own yt-dlp..."
-  python3 -B "$DIR/server.py" --update-yt-dlp \
-    || echo "Warning: that failed; a system-wide yt-dlp is used if there is one."
-else
-  echo "Warning: pip isn't installed, so MinimalTube can't keep its own yt-dlp (a system-wide one is used if there is one)."
-fi
-
-# ---- native messaging manifest -----------------------------------------------
-MANIFEST=$(cat <<JSON
-{
-  "name": "$HOST_NAME",
-  "description": "MinimalTube: start the local server",
-  "path": "$HOST_PATH",
-  "type": "stdio",
-  "allowed_origins": [$ORIGINS]
 }
-JSON
-)
 
-installed=0
-for base in \
-  "$HOME/.config/google-chrome" \
-  "$HOME/.config/google-chrome-beta" \
-  "$HOME/.config/chromium" \
-  "$HOME/.config/BraveSoftware/Brave-Browser" \
-  "$HOME/.config/vivaldi" \
-  "$HOME/.config/microsoft-edge"; do
-  if [ -d "$base" ]; then
-    mkdir -p "$base/NativeMessagingHosts"
-    printf '%s\n' "$MANIFEST" > "$base/NativeMessagingHosts/$HOST_NAME.json"
-    echo "Installed for: $base"
-    installed=1
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+  else shasum -a 256 "$1" | cut -d' ' -f1
   fi
-done
-
-[ "$installed" = 1 ] || echo "No supported browser profile folder found."
-
-# ---- Start-menu shortcut (opens the player as a standalone app window) ---------
-pick_browser() {
-  local entry cfg bins bin path fallback=""
-  local pairs=(
-    "$HOME/.config/google-chrome|google-chrome-stable google-chrome"
-    "$HOME/.config/google-chrome-beta|google-chrome-beta"
-    "$HOME/.config/chromium|chromium chromium-browser"
-    "$HOME/.config/BraveSoftware/Brave-Browser|brave brave-browser"
-    "$HOME/.config/vivaldi|vivaldi-stable vivaldi"
-    "$HOME/.config/microsoft-edge|microsoft-edge-stable microsoft-edge"
-  )
-  for entry in "${pairs[@]}"; do
-    cfg="${entry%%|*}"; bins="${entry#*|}"
-    [ -d "$cfg" ] || continue
-    for bin in $bins; do
-      if command -v "$bin" >/dev/null 2>&1; then
-        path="$(command -v "$bin")"
-        [ -z "$fallback" ] && fallback="$path"
-        # prefer the browser whose profile actually contains this extension
-        if grep -qs "$APP_ID" "$cfg"/*/Preferences "$cfg"/*/"Secure Preferences" 2>/dev/null; then
-          echo "$path"; return
-        fi
-        break
-      fi
-    done
-  done
-  echo "$fallback"
 }
 
-BROWSER_BIN="${MINIMALTUBE_BROWSER:-$(pick_browser)}"
-if [ -z "$BROWSER_BIN" ]; then
-  echo "Skipped the Start-menu shortcut: no Chromium-based browser found (set MINIMALTUBE_BROWSER=/path/to/browser)."
+fetch_own_python() {
+  local machine triple tmp url name want got
+  machine="$(uname -m)"
+  case "$OS-$machine" in
+    Darwin-arm64) triple=aarch64-apple-darwin ;;
+    Darwin-x86_64) triple=x86_64-apple-darwin ;;
+    Linux-x86_64) triple=x86_64-unknown-linux-gnu ;;
+    Linux-aarch64|Linux-arm64) triple=aarch64-unknown-linux-gnu ;;
+    *)
+      echo "Error: there's no ready-made Python for $OS $machine. Install Python 3.10 or newer" >&2
+      echo "       with Flask and Flask-CORS, then run this again." >&2
+      return 1 ;;
+  esac
+  echo "Getting MinimalTube's own Python (about 30 MB, once)..."
+  tmp="$(mktemp -d)"
+  url=""
+  if fetch "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest" "$tmp/release.json" 2>/dev/null; then
+    url="$(grep -o "\"browser_download_url\": *\"[^\"]*/cpython-3\.13\.[0-9]*%2B[0-9]*-$triple-install_only\.tar\.gz\"" "$tmp/release.json" \
+      | head -n 1 | sed -e 's/^.*"\(https:[^"]*\)"$/\1/')" || true
+  fi
+  [ -n "$url" ] || url="https://github.com/astral-sh/python-build-standalone/releases/download/$PBS_TAG/cpython-$PBS_PYTHON%2B$PBS_TAG-$triple-install_only.tar.gz"
+  name="$(printf '%s' "${url##*/}" | sed 's/%2B/+/g')"
+  fetch "$url" "$tmp/python.tar.gz"
+  # the release lists every file's SHA-256: the download has to match it
+  if fetch "${url%/*}/SHA256SUMS" "$tmp/SHA256SUMS" 2>/dev/null; then
+    want="$(awk -v n="$name" '$2 == n { print $1 }' "$tmp/SHA256SUMS")"
+    got="$(sha256_of "$tmp/python.tar.gz")"
+    if [ -z "$want" ] || [ "$want" != "$got" ]; then
+      echo "Error: the Python download doesn't match its published checksum." >&2
+      rm -rf "$tmp"
+      return 1
+    fi
+  else
+    echo "Warning: couldn't get the checksums to verify the Python download."
+  fi
+  tar -xzf "$tmp/python.tar.gz" -C "$tmp"
+  mkdir -p "$APP_DIR"
+  rm -rf "$APP_DIR/python"
+  mv "$tmp/python" "$APP_DIR/python"
+  rm -rf "$tmp"
+}
+
+if [ "$OS" = Linux ] && [ -z "${MINIMALTUBE_OWN_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1 \
+  && python3 -c 'import sys, flask, flask_cors; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
+  PY="$(command -v python3)"
 else
-  # The menu entry opens the player as an app window; the player asks the extension to start
-  # the server (through the native host above) and gives each new window its default size.
-  # No --window-size: when this entry is what starts the browser, Chromium gives every window that
-  # size instead of the one it saved, and the player would have to resize it on each open.
-  rm -f "$DIR/minimaltube-launch.sh" # the generated launcher older versions put here
-
-  ICON="$DIR/icons/icon128.png"
-  [ -f "$ICON" ] || ICON="video-x-generic"
-
-  APPS_DIR="$HOME/.local/share/applications"
-  mkdir -p "$APPS_DIR"
-  cat > "$APPS_DIR/minimaltube.desktop" <<EOF3
-[Desktop Entry]
-Type=Application
-Name=MinimalTube
-Comment=Minimal YouTube player
-Exec="$BROWSER_BIN" --app=chrome-extension://$APP_ID/player.html
-Icon=$ICON
-Terminal=false
-Categories=AudioVideo;Video;Player;
-StartupWMClass=chrome-${APP_ID}__player.html-Default
-EOF3
-  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
-  command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 >/dev/null 2>&1 || true
-  echo "Added 'MinimalTube' to your application menu (using $BROWSER_BIN)."
+  if ! "$OWN_PY" -c 'import sys' >/dev/null 2>&1; then
+    fetch_own_python
+  fi
+  PY="$OWN_PY"
 fi
 
-echo "Done. Reload the extension."
+# ${1+"$@"}: bash 3.2 (macOS) calls a plain "$@" unset under set -u when there are no arguments
+"$PY" -X utf8 -B "$DIR/install.py" ${1+"$@"}

@@ -1,6 +1,6 @@
 """MinimalTube server - its own copy of yt-dlp.
 
-pip installs it into the data folder (`--target`: no sudo, no system package in the way), so the
+pip installs it into the app folder (`--target`: no sudo, no system package in the way), so the
 app can update it the same way on every OS; a system-wide yt-dlp is only the fallback. Every
 install goes into a folder of its own and yt-dlp.json names the one to use, so an update never
 touches the copy that's running (Windows can't replace files in use): the server picks the new
@@ -20,16 +20,17 @@ import time
 import urllib.request
 from pathlib import Path
 
-from .config import DATA_DIR
+from .config import APP_DIR
+from .system import replace_file
 
-POINTER = DATA_DIR / "yt-dlp.json"
+POINTER = APP_DIR / "yt-dlp.json"
 PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
 _install_lock = threading.Lock()
 
 
 def _current_dir() -> Path | None:
     try:
-        path = DATA_DIR / json.loads(POINTER.read_text(encoding="utf-8"))["dir"]
+        path = APP_DIR / json.loads(POINTER.read_text(encoding="utf-8"))["dir"]
     except (OSError, ValueError, KeyError, TypeError):
         return None
     return path if (path / "yt_dlp").is_dir() else None
@@ -41,7 +42,7 @@ def use_own_copy():
     finds the system-wide one.
     """
     current = _current_dir()
-    for old in DATA_DIR.glob("yt-dlp-*"):
+    for old in APP_DIR.glob("yt-dlp-*"):
         if old != current:
             shutil.rmtree(old, ignore_errors=True)
     if current:
@@ -52,7 +53,7 @@ def running_own_copy() -> bool:
     """Whether the yt-dlp this process imported is MinimalTube's own copy (else: system-wide)."""
     import yt_dlp  # imported here: this module is loaded before sys.path is set up for it
 
-    return Path(yt_dlp.__file__).resolve().is_relative_to(DATA_DIR.resolve())
+    return Path(yt_dlp.__file__).resolve().is_relative_to(APP_DIR.resolve())
 
 
 def up_to_date(running: str) -> bool:
@@ -91,10 +92,11 @@ def install_latest() -> str:
             doesn't import. The message says which; the copy in use is left as it was.
     """
     if importlib.util.find_spec("pip") is None:
-        raise RuntimeError("pip isn't installed for this Python (Arch: python-pip, Debian/Ubuntu: python3-pip)")
+        raise RuntimeError("pip isn't installed for this Python (run the installer again; "
+                           "or Arch: python-pip, Debian/Ubuntu: python3-pip)")
     if not _install_lock.acquire(blocking=False):
         raise RuntimeError("an update is already running")
-    target = DATA_DIR / f"yt-dlp-{time.time_ns()}"
+    target = APP_DIR / f"yt-dlp-{time.time_ns()}"
     done = False
     try:
         pip = subprocess.run(
@@ -113,7 +115,7 @@ def install_latest() -> str:
             raise RuntimeError(f"the new copy doesn't start: {_last_line(check.stderr) or 'no version'}")
         tmp = POINTER.with_suffix(".tmp")
         tmp.write_text(json.dumps({"dir": target.name, "version": version}), encoding="utf-8")
-        os.replace(tmp, POINTER)
+        replace_file(tmp, POINTER)
         done = True
         return version
     except (OSError, subprocess.TimeoutExpired) as e:

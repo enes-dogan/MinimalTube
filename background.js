@@ -162,6 +162,13 @@ async function findServer() {
 }
 
 // Promise wrapper around native messaging that never rejects.
+// What to run to (re)install MinimalTube on this OS, for messages.
+const INSTALLER = /Windows/.test(navigator.userAgent)
+  ? "install.cmd"
+  : /Mac OS X|Macintosh/.test(navigator.userAgent)
+    ? "install.command"
+    : "./install.sh";
+
 function nativeMessage(message) {
   return new Promise((resolve) => {
     try {
@@ -171,9 +178,9 @@ function nativeMessage(message) {
           const m = err.message || "";
           let error = m;
           if (/not found/i.test(m))
-            error = `Native host not installed. Run ./install.sh ${chrome.runtime.id} once, then try again.`;
+            error = `Native host not installed. Run MinimalTube's installer (${INSTALLER}) once, then try again.`;
           else if (/forbidden/i.test(m))
-            error = `This extension isn't allowed to use the native host. Run ./install.sh ${chrome.runtime.id} again.`;
+            error = `This extension isn't allowed to use the native host. Run MinimalTube's installer (${INSTALLER}) again.`;
           return resolve({ ok: false, error });
         }
         resolve(response && response.ok !== undefined ? response : { ok: false, error: "No response from native host" });
