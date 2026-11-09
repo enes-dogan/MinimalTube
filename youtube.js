@@ -173,12 +173,18 @@ async function sha1Hex(text) {
   ).join("");
 }
 
-async function ytAuthorization() {
-  let cookie = null;
+// The cookie YouTube signs an account's requests with: there is none while nobody is signed in
+// to YouTube in this browser profile (finding that out asks nothing of YouTube).
+async function ytAccountCookie() {
   for (const name of ["SAPISID", "__Secure-3PAPISID"]) {
-    cookie = await chrome.cookies.get({ url: YT_ORIGIN, name });
-    if (cookie) break;
+    const cookie = await chrome.cookies.get({ url: YT_ORIGIN, name });
+    if (cookie) return cookie;
   }
+  return null;
+}
+
+async function ytAuthorization() {
+  const cookie = await ytAccountCookie();
   if (!cookie) throw new Error("not signed in to YouTube in this browser profile");
   const ts = Math.floor(Date.now() / 1000);
   return `SAPISIDHASH ${ts}_${await sha1Hex(`${ts} ${cookie.value} ${YT_ORIGIN}`)}`;
@@ -392,5 +398,151 @@ async function ytFetchSubscriptions() {
     page = parseChannelList(await innertube("browse", cfg, { continuation: page.token }));
   }
   if (!found.size) throw new Error("no channels found on the subscriptions page");
+  return [...found.values()];
+}
+
+/* ------------------------------------------------------------- collabs */
+
+// A collab is a video several channels made together. It is uploaded once, by one of them, so
+// only that channel lists it, but YouTube shows it to the subscribers of all of them. Its card
+// names them in a "Collaborators" dialog: both the lockup cards and the older videoRenderer.
+const AGO_UNITS = [
+  [/^(s|secs?|seconds?)$/, 1],
+  [/^(m|mins?|minutes?)$/, 60],
+  [/^(h|hrs?|hours?)$/, 3600],
+  [/^(d|days?)$/, 86400],
+  [/^(w|wks?|weeks?)$/, 7 * 86400],
+  [/^(mo|mos|months?)$/, 30 * 86400],
+  [/^(y|yrs?|years?)$/, 365 * 86400],
+];
+
+// "3 hours ago", "5d ago", "Streamed 2 days ago" (the page is asked for in English) -> the upload
+// time it means, in unix seconds; null for anything else (a premiere, a live stream).
+function timeFromAgo(text) {
+  const m = /(\d+)\s*([a-z]+)\s+ago\b/i.exec(text || "");
+  const unit = m && AGO_UNITS.find(([re]) => re.test(m[2].toLowerCase()));
+  return unit ? Math.floor(Date.now() / 1000) - Number(m[1]) * unit[1] : null;
+}
+
+// "78K", "1.2M views", "222,296 views", "No views" -> a number; null for anything else.
+function viewCount(text) {
+  const t = String(text || "").trim();
+  if (/^no views$/i.test(t)) return 0;
+  const m = /^([\d.,]+)\s*([KMB])?(?:\s+views?)?$/i.exec(t);
+  if (!m) return null;
+  const n = Number(m[1].replace(/,/g, "")) * ({ k: 1e3, m: 1e6, b: 1e9 }[(m[2] || "").toLowerCase()] || 1);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+// The channels of a card's "Collaborators" dialog, in YouTube's order (the uploader first).
+function cardCollaborators(card) {
+  const found = new Map();
+  walkJson(card, (node) => {
+    if (!node.showDialogCommand) return;
+    walkJson(node.showDialogCommand, (inner) => {
+      const item = inner.listItemViewModel;
+      if (!item) return;
+      let id = null;
+      walkJson(item, (n) => {
+        const browseId = n.browseEndpoint?.browseId;
+        if (!id && /^UC[\w-]{22}$/.test(browseId || "")) id = browseId;
+      });
+      const name = typeof item.title?.content === "string" ? item.title.content.trim() : "";
+      if (id && !found.has(id)) found.set(id, { id, name });
+    });
+  });
+  return [...found.values()];
+}
+
+// One video card (a lockup or a videoRenderer) -> the collab it shows, or null when it isn't one
+// or has no upload time yet (a premiere, a live stream).
+function collabVideo(card) {
+  const lockup = card.lockupViewModel,
+    renderer = card.videoRenderer;
+  let id, title, lengthText, texts, viewTexts;
+  if (lockup?.contentType === "LOCKUP_CONTENT_TYPE_VIDEO") {
+    const meta = lockup.metadata?.lockupMetadataViewModel;
+    id = lockup.contentId;
+    title = meta?.title?.content;
+    walkJson(lockup.contentImage, (node) => {
+      lengthText ??= node.thumbnailBadgeViewModel?.text;
+    });
+    const rows = (meta?.metadata?.contentMetadataViewModel?.metadataRows || []).map((row) =>
+      (row.metadataParts || []).map((part) => part.text?.content || ""),
+    );
+    texts = rows.flat();
+    viewTexts = (rows.length > 1 ? rows.slice(1) : rows).flat(); // the first row names the channels
+  } else if (renderer?.videoId) {
+    id = renderer.videoId;
+    title = renderer.title?.runs?.map((run) => run.text).join("") || renderer.title?.simpleText;
+    lengthText = renderer.lengthText?.simpleText;
+    texts = viewTexts = [renderer.publishedTimeText?.simpleText, renderer.viewCountText?.simpleText];
+  } else return null;
+  if (!/^[\w-]{11}$/.test(id || "")) return null;
+  const channels = cardCollaborators(lockup || renderer),
+    published = texts.map(timeFromAgo).find((time) => time != null);
+  if (channels.length < 2 || published == null) return null;
+  return {
+    id,
+    title: title || "",
+    channels,
+    published,
+    duration: parseDuration(lengthText) || null,
+    views: viewTexts.map(viewCount).find((n) => n != null) ?? null,
+  };
+}
+
+// One page of the subscriptions feed (or a continuation of it): its collabs and the token for
+// the next page.
+function parseCollabPage(data) {
+  const videos = [];
+  let token = null;
+  walkJson(data, (node) => {
+    if (node.lockupViewModel || node.videoRenderer) {
+      const video = collabVideo(node);
+      if (video) videos.push(video);
+    }
+    if (node.continuationItemRenderer)
+      token = continuationToken(node.continuationItemRenderer) || token;
+  });
+  return { videos, token };
+}
+
+/**
+ * The collabs in the YouTube subscriptions feed of the account signed in to this browser profile
+ * (youtube.com/feed/subscriptions).
+ * @param {number} pages How many pages of the feed to read, newest first (a page is a few dozen
+ *   videos). A later page that can't be loaded ends the reading; what was found stays.
+ * @returns {Promise<Array<{id: string, title: string, channels: Array<{id: string, name: string}>,
+ *   published: number, duration: ?number, views: ?number}>|null>} Each collab once: its
+ *   collaborators (two or more, the uploader first), its upload time in unix seconds (as close
+ *   as YouTube's "5d ago" says), length in seconds and view count when shown. null when no
+ *   account is signed in: then YouTube isn't asked at all (no account cookie), or its answer says
+ *   signed out (a redirect to Google's sign-in isn't followed).
+ */
+async function ytFetchCollabs(pages) {
+  if (!(await ytAccountCookie())) return null;
+  const res = await fetch(`${YT_ORIGIN}/feed/subscriptions?hl=en`, {
+    credentials: "include",
+    redirect: "manual",
+  });
+  if (res.type === "opaqueredirect") return null;
+  if (!res.ok) throw new Error(`subscriptions feed returned ${res.status}`);
+  const html = await res.text();
+  const cfg = parseYtcfg(html);
+  if (!cfg.loggedIn) return null;
+  const data = extractJsonAfter(html, "ytInitialData = {");
+  if (!data) throw new Error("couldn't read the subscriptions feed");
+  const found = new Map();
+  let page = parseCollabPage(data);
+  for (let read = 1; ; read++) {
+    page.videos.forEach((video) => found.has(video.id) || found.set(video.id, video));
+    if (!page.token || read >= pages || !cfg.clientVersion) break;
+    try {
+      page = parseCollabPage(await innertube("browse", cfg, { continuation: page.token }));
+    } catch {
+      break; // the newer pages' collabs are worth keeping
+    }
+  }
   return [...found.values()];
 }

@@ -48,6 +48,7 @@ from .feed import (
     parse_channel_input,
     resolve_channel,
     saved_subscriptions,
+    store_collabs,
     subs_lock,
     subscription_public,
     write_subscriptions,
@@ -706,6 +707,16 @@ def feed():
     items, has_more, errors, offline, pending = build_feed(offset, limit, refresh, channel, channel_name)
     return jsonify({"items": items, "has_more": has_more, "errors": errors, "offline": offline,
                     "pending": pending, "subscribers": CHANNEL_FOLLOWERS.get(channel) if channel else None})
+
+@app.route("/feed/collabs", methods=["POST"])
+def feed_collabs():
+    """Collabs the extension read from the signed-in YouTube subscriptions feed: {"videos": [...]}
+    (see feed.store_collabs). Answers {"channels": [...]}, the subscribed channels that got one."""
+    videos = (request.get_json(silent=True) or {}).get("videos")
+    if not isinstance(videos, list):
+        return jsonify({"error": 'expected a JSON body like {"videos": [{"id": "...", "channels": [...], '
+                                 '"published": ...}, ...]}'}), 400
+    return jsonify({"channels": store_collabs(videos[:500])})
 
 @app.route("/video/<vid:video_id>", methods=["DELETE"])
 def delete_video(video_id):

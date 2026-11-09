@@ -770,7 +770,55 @@ async function sendImport(channels) {
   }
 }
 
+/* ------------------------------------------------- collabs from the YouTube feed */
+
+// A collab video is uploaded by one of its channels only, so the other channels' uploads never
+// list it; YouTube shows it to their subscribers in the subscriptions feed. While an account is
+// signed in to YouTube in this profile, the player has that feed read and its collabs go to the
+// server, which adds the ones of subscribed channels to the feed. A read waits for the server to
+// answer (it's still starting when the app opens), and after one that worked the next waits
+// COLLABS_EVERY_MS (COLLABS_RETRY_MS from the refresh button, or after one that didn't). The
+// first read of a browser session goes further back. With nobody signed in nothing is asked of
+// YouTube and nothing is reported: the app works the same without it.
+const COLLABS_EVERY_MS = 15 * 60 * 1000,
+  COLLABS_RETRY_MS = 60 * 1000,
+  COLLAB_PAGES = 3,
+  COLLAB_PAGES_FIRST = 10;
+let collabsReading = null;
+
+async function readCollabs(force) {
+  const none = { ok: true, channels: [] };
+  if (!(await ytAccountCookie()) || !(await isHealthy(await getServerBase()))) return none;
+  const now = Date.now(),
+    { collabsReadAt = 0, collabsTriedAt = 0 } = await chrome.storage.session.get(["collabsReadAt", "collabsTriedAt"]);
+  if (now - collabsTriedAt < COLLABS_RETRY_MS || (!force && now - collabsReadAt < COLLABS_EVERY_MS)) return none;
+  await chrome.storage.session.set({ collabsTriedAt: now });
+  const videos = await ytFetchCollabs(collabsReadAt ? COLLAB_PAGES : COLLAB_PAGES_FIRST);
+  if (!videos) return none; // signed out after all
+  let channels = [];
+  if (videos.length) {
+    const data = await serverJson("/feed/collabs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videos }),
+    });
+    channels = Array.isArray(data.channels) ? data.channels : [];
+  }
+  await chrome.storage.session.set({ collabsReadAt: now });
+  return { ok: true, channels };
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "minimaltube-read-collabs") {
+    collabsReading ??= readCollabs(!!msg.force)
+      .catch((err) => {
+        logQuiet("collabs from the YouTube feed", err);
+        return { ok: false, channels: [] };
+      })
+      .finally(() => (collabsReading = null));
+    collabsReading.then(sendResponse);
+    return true;
+  }
   if (msg?.type === "minimaltube-import-subscriptions") {
     importSubscriptions().then(sendResponse);
     return true;

@@ -173,6 +173,106 @@ def exact_ts(video_id: str):
     """An exact upload time if we know one (RSS feed or a lookup), else None."""
     return RSS_ALL.get(video_id) or (SHORT_INFO.get(video_id) or {}).get("ts")
 
+# ---- Collabs: videos a subscribed channel made together with another channel ----
+# Such a video is uploaded by one of its channels only, so the others' tabs and RSS feeds never
+# list it; YouTube shows it to all of their subscribers in their subscriptions feed. While an
+# account is signed in to YouTube, the extension reads that feed and hands its collabs over
+# (store_collabs); the feed adds them to the uploads of every subscribed collaborator.
+COLLABS = {}             # video id -> {"id", "title", "channels": [{"id", "name"}], "published", ...}
+COLLABS_MAX = 500
+collabs_lock = threading.Lock()
+
+def collabs_path() -> Path:
+    return DATA_DIR / "collabs.json"
+
+def load_collabs():
+    COLLABS.update((c["id"], c) for c in read_json(collabs_path(), [])
+                   if isinstance(c, dict) and VIDEO_ID_RE.match(str(c.get("id", "")))
+                   and isinstance(c.get("channels"), list) and isinstance(c.get("published"), (int, float)))
+
+def _clean_collab(v) -> dict | None:
+    """One collab as the extension sent it -> what is kept of it, or None when it isn't valid."""
+    vid = str(v.get("id") or "") if isinstance(v, dict) else ""
+    if not VIDEO_ID_RE.match(vid):
+        return None
+    channels, seen = [], set()
+    for ch in v.get("channels") if isinstance(v.get("channels"), list) else []:
+        cid = str(ch.get("id") or "") if isinstance(ch, dict) else ""
+        if CHANNEL_ID_RE.match(cid) and cid not in seen:
+            seen.add(cid)
+            channels.append({"id": cid, "name": " ".join(str(ch.get("name") or "").split())[:100] or cid})
+    published, dur, views = v.get("published"), v.get("duration"), v.get("views")
+    if len(channels) < 2 or isinstance(published, bool) or not isinstance(published, (int, float)) \
+            or not 1104537600 <= published <= time.time() + 86400:   # YouTube's start .. tomorrow
+        return None
+    return {"id": vid, "title": " ".join(str(v.get("title") or "").split())[:300] or vid,
+            "channels": channels, "published": float(published),
+            "duration": float(dur) if isinstance(dur, (int, float)) and not isinstance(dur, bool)
+            and 0 < dur < 86400 * 7 else None,
+            "views": int(views) if isinstance(views, (int, float)) and not isinstance(views, bool)
+            and views >= 0 else None}
+
+def store_collabs(videos) -> list:
+    """Remember the collabs the extension found in the signed-in YouTube subscriptions feed.
+
+    Args:
+        videos (list[dict]): {"id", "title", "channels": [{"id": "UC...", "name"}, ...] (two or more,
+            the uploader first), "published" (unix seconds, approximate), "duration" (seconds or
+            None), "views" (int or None)} each. Invalid ones are skipped.
+
+    Returns:
+        list[str]: The subscribed channels that got a collab they didn't have, so the app can ask
+        for their feeds again. Only collabs with a subscribed collaborator are kept (the newest
+        COLLABS_MAX, in collabs.json); the upload time of the first sighting is kept, as it's the
+        closest ("3 hours ago" beats "2 days ago"), and the exact one is looked up in the background.
+    """
+    with subs_lock:
+        subscribed = {c["id"] for c in saved_subscriptions}
+    found = [c for c in map(_clean_collab, videos if isinstance(videos, list) else []) if c]
+    found = [c for c in found if any(ch["id"] in subscribed for ch in c["channels"])]
+    changed, new_ids, dirty = set(), [], False
+    with collabs_lock:
+        for c in found:
+            old = COLLABS.get(c["id"])
+            ids = {ch["id"] for ch in c["channels"]}
+            if old is None or ids != {ch["id"] for ch in old["channels"]}:
+                changed |= ids & subscribed
+                new_ids.append(c["id"])
+            merged = dict(c, published=min(c["published"], old["published"])) if old else c
+            dirty = dirty or merged != old
+            COLLABS[c["id"]] = merged
+        keep = sorted((c for c in COLLABS.values()
+                       if any(ch["id"] in subscribed for ch in c["channels"])),
+                      key=lambda c: c["published"], reverse=True)[:COLLABS_MAX]
+        if len(keep) != len(COLLABS):
+            COLLABS.clear()
+            COLLABS.update((c["id"], c) for c in keep)
+            dirty = True
+        if dirty:
+            write_json_atomic(collabs_path(), keep, "feed")
+    if new_ids and is_online():
+        queue_video_info(i for i in new_ids if not exact_ts(i))
+    return sorted(changed)
+
+def collab_label(names: list) -> str:
+    """A collab's channels, the uploader first: "A and B", "A, B and C"."""
+    names = [n for n in names if n]
+    return " and ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else "".join(names)
+
+def collab_entries(channel_ids) -> list:
+    """The stored collabs of these channels as feed entries, each under its first collaborator
+    among them (a collab two subscribed channels share shows once)."""
+    with collabs_lock:
+        collabs = list(COLLABS.values())
+    out = []
+    for c in collabs:
+        cid = next((ch["id"] for ch in c["channels"] if ch["id"] in channel_ids), None)
+        if cid:
+            out.append({"id": c["id"], "title": c["title"], "duration": c.get("duration"),
+                        "views": c.get("views"), "timestamp": c["published"], "exact": False,
+                        "channel_id": cid, "kind": "videos", "date": c["published"]})
+    return out
+
 def source_state(channel_id: str, kind: str = "videos") -> dict:
     with feed_cache_lock:
         st = feed_cache.get((channel_id, kind))
@@ -208,14 +308,10 @@ def ytdlp_channel_entries(channel_id: str, count: int, kind: str = "videos") -> 
                     tzinfo=timezone.utc).timestamp()
             except ValueError:
                 ts = None
-        owner_id = e.get("channel_id")
         out.append({"id": vid, "title": e.get("title") or vid,
                     "duration": e.get("duration"), "views": e.get("view_count"),
                     "timestamp": ts,
-                    "members_only": e.get("availability") == "subscriber_only",
-                    # who actually owns the video (differs from this channel for collabs)
-                    "owner": e.get("channel") or e.get("uploader"),
-                    "owner_id": owner_id if isinstance(owner_id, str) and CHANNEL_ID_RE.match(owner_id) else None})
+                    "members_only": e.get("availability") == "subscriber_only"})
     return out
 
 def rss_dates(channel_id: str) -> dict:
@@ -401,6 +497,9 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
                 # the one whose date is exact
                 if cur is None or (not is_exact(cur) and is_exact(cand)):
                     pool_all[e["id"]] = cand
+        # collabs uploaded by a channel that isn't here (one that is lists them itself)
+        for e in collab_entries(names):
+            pool_all.setdefault(e["id"], dict(e, date=date_of(e)))
         everything = list(pool_all.values())
         # Shorts without a real date yet: look up the ones that could still land on this page
         # (their upper bound is at or above the date of the last dated video that fits)
@@ -439,14 +538,13 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
         lengths = queue_video_info([e["id"] for e in page if not e.get("duration")])
         # the channel listing gives YouTube's translated titles: use each video's own-language one
         titles = ensure_original_titles([e["id"] for e in page if e["id"] not in lengths])
-        pending = pending or bool(lengths) or titles > 0
+        # a collab's time comes from "3 days ago" until its exact one is looked up
+        dating = queue_video_info([e["id"] for e in page if e["id"] in COLLABS and not exact_ts(e["id"])])
+        pending = pending or bool(lengths) or titles > 0 or bool(dating)
 
     def display_channel(e):
-        sub = names.get(e["channel_id"], "")
-        owner, owner_id = e.get("owner"), e.get("owner_id")
-        if owner and owner_id and owner_id != e["channel_id"]:
-            return f"{owner} and {sub}"   # a collaboration, shown the way YouTube shows it
-        return sub
+        collab = COLLABS.get(e["id"])   # a collab names all of its channels, as YouTube does
+        return collab_label([ch["name"] for ch in collab["channels"]]) if collab else names.get(e["channel_id"], "")
 
     items = [{
         "id": e["id"], "title": original_title(e["id"], e["title"]), "channel": display_channel(e),
@@ -550,3 +648,4 @@ def import_subscriptions(channels) -> dict:
     return {"added": len(added), "already": already, "resolving": len(handles)}
 
 load_short_info()
+load_collabs()

@@ -442,8 +442,20 @@ function feedStale(id) {
   const feed = channelFeeds.get(id);
   return !feed || feed.at < feedNetBackAt || Date.now() - feed.at > FEED_BG_REFRESH_MS;
 }
+// Collabs: a video a subscribed channel made with another channel is uploaded by the other one,
+// so it isn't among this channel's uploads. While an account is signed in to YouTube here, the
+// background reads them from its YouTube subscriptions feed now and then and the server adds
+// them to the feed: channels that got one are asked again. Signed out, nothing happens.
+function readCollabs(force) {
+  chrome.runtime.sendMessage({ type: "minimaltube-read-collabs", force }, (res) => {
+    if (chrome.runtime.lastError || !res || !Array.isArray(res.channels)) return;
+    // a fetch already under way may have asked before the server had them: ask once more after it
+    res.channels.forEach((id) => (channelFetches.get(id) || Promise.resolve()).then(() => fetchChannel(id)));
+  });
+}
 async function refreshFeed(force = false) {
   await feedMemoryReady;
+  readCollabs(force);
   const ids = viewChannelIds().filter((id) => force || feedStale(id));
   if (!ids.length) return finishFeedStatus();
   // the channels most likely to have something new first; never fetched ones before all

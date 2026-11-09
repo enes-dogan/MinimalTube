@@ -20,7 +20,10 @@ to fetch, download and stream videos. No YouTube page ever loads.
   feed. Click a channel name to see only that channel's content. The latest 36 videos of up to 30 channels are remembered, so the feed
   and channel pages open instantly; new uploads slot in as they're found. The import button
   next to *Channels* brings over all your YouTube subscriptions at once (you need to be signed
-  in to YouTube in this browser); their videos fill the feed as they're read.
+  in to YouTube in this browser); their videos fill the feed as they're read. While you're
+  signed in, collabs show up too: a video a channel you follow made with another channel,
+  which YouTube lists only under the channel that uploaded it. Signed out, the feed works the
+  same without them.
 - **Queue and playlists.** *Add next to queue*, drag to reorder, Back / Next. Save the
   queue (or any video) to your own playlists.
 - **Synced with YouTube.** Save one of your YouTube playlists from its page and it stays
@@ -159,7 +162,7 @@ On Linux:
 | What | Where |
 |---|---|
 | Downloads, thumbnails, captions | `~/.cache/minimaltube/` |
-| Playlists, subscriptions, the order of your downloads, MinimalTube's own yt-dlp | `~/.local/share/minimaltube/` |
+| Playlists, subscriptions, collabs found in your YouTube feed, the order of your downloads, MinimalTube's own yt-dlp | `~/.local/share/minimaltube/` |
 | Server log | `~/.cache/minimaltube/server.log` |
 | Settings, queue, watch progress, the feed's memory | the browser's extension storage |
 | The application-menu entry | `~/.local/share/applications/minimaltube.desktop` |
@@ -170,7 +173,7 @@ On macOS and Windows:
 | What | macOS | Windows |
 |---|---|---|
 | Downloads, thumbnails, captions, server log | `~/Library/Caches/MinimalTube/` | `%LOCALAPPDATA%\MinimalTube\Cache\` |
-| Playlists, subscriptions, the order of your downloads | `~/Library/Application Support/MinimalTube/` | `%APPDATA%\MinimalTube\` |
+| Playlists, subscriptions, collabs found in your YouTube feed, the order of your downloads | `~/Library/Application Support/MinimalTube/` | `%APPDATA%\MinimalTube\` |
 | MinimalTube's own Python, yt-dlp, ffmpeg and Deno | `~/Library/Application Support/MinimalTube/` | `%LOCALAPPDATA%\MinimalTube\` |
 | The app | `~/Applications/MinimalTube.app` | Start menu → MinimalTube |
 | What lets the extension start the server | `~/Library/Application Support/<browser>/NativeMessagingHosts/` | registry: `HKCU\Software\<browser>\NativeMessagingHosts\com.minimaltube.host` |
