@@ -673,17 +673,6 @@ def subscriptions_add():
         write_subscriptions()
     return jsonify({"subscription": subscription_public(channel), "already": False})
 
-@app.route("/channel-lookup")
-def channel_lookup():
-    """Whose channel a link is (/@handle, /channel/UC..., /c/..., /user/...), without subscribing."""
-    try:
-        channel = resolve_channel(parse_channel_input(request.args.get("url", "")))
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 404
-    except Exception as e:
-        return jsonify({"error": f"yt-dlp couldn't open that channel: {e}"}), 502
-    return jsonify(subscription_public(channel))
-
 @app.route("/subscriptions/<channel_id>", methods=["DELETE"])
 def subscriptions_delete(channel_id):
     if not CHANNEL_ID_RE.match(channel_id):

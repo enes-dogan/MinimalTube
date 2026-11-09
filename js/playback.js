@@ -440,7 +440,7 @@ async function addUrlToQueue(rawUrl) {
       },
     ]);
     try {
-      const data = await api(preparePath(rawUrl, false)),
+      const data = await api(preparePath(rawUrl)),
         item = queue && queue.items[t];
       if (item && item.url === rawUrl) {
         item.id = data.video_id;
@@ -522,9 +522,6 @@ chrome.runtime.onMessage.addListener((item, t, fn) => {
     fn({ ok: true });
   } else if (item?.type === "minimaltube-play-now" && item.url) {
     whenLoaded(() => playLinkNow(item.url));
-    fn({ ok: true });
-  } else if (item?.type === "minimaltube-open-channel" && item.channel?.id) {
-    whenLoaded(() => openChannel(item.channel));
     fn({ ok: true });
   }
 });

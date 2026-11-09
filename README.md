@@ -11,10 +11,10 @@ to fetch, download and stream videos. No YouTube page ever loads.
 - **Watch without the noise.** Any YouTube video plays ad-free in its own window,
   downloaded in the best quality so it's yours offline. On youtube.com, right-click a
   video or link → *Add to MinimalTube queue*, or paste a link in Settings.
-- **YouTube links open here.** A video, Shorts, playlist or channel link opened in this browser
-  (or in another app, when this browser is your default) opens in MinimalTube instead of on
-  YouTube. Turn it off in Settings (*Open YouTube links in MinimalTube*); a video's ⋮ →
-  *Open on YouTube* still takes you there.
+- **YouTube videos open here.** Turn on *Open YouTube videos in MinimalTube* in Settings (off
+  by default) and a video or Shorts link opened in this browser (or in another app, when this
+  browser is your default) plays in MinimalTube instead of on YouTube. Playlists and channels
+  stay on YouTube; a video's ⋮ → *Open on YouTube* still takes you there.
 - **Subscriptions.** Add channels by @handle or link; their new uploads arrive in one
   feed. Click a channel name to see only that channel's content. The latest 36 videos of up to 30 channels are remembered, so the feed
   and channel pages open instantly; new uploads slot in as they're found. The import button
@@ -146,7 +146,7 @@ Run the installer again if you move this folder.
 - **The side panel** (**T**, or the list button at the top right) holds the queue and your downloads.
 - **⋮ on any video or row** (or right-click it) for its actions; each has a letter shortcut key.
 - **Settings** (⚙): add a link to the queue, SponsorBlock, *Remember
-  queue*, *Open YouTube links in MinimalTube*, YouTube history sync, *Stream while downloading* and *Stream only*. ★ shows
+  queue*, *Open YouTube videos in MinimalTube*, YouTube history sync, *Stream while downloading* and *Stream only*. ★ shows
   the tour again; **i** shows the keyboard shortcuts.
 - **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
   another program already uses it.

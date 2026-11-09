@@ -97,7 +97,6 @@ chrome.storage.local.get(
     const params = new URLSearchParams(window.location.search),
       n = params.get("url"),
       s = params.get("pid"),
-      ch = params.get("channel"),
       fn = async (e) => {
         if (e && e.savePrompt) {
           takeYouTubePlaylist(e);
@@ -119,9 +118,6 @@ chrome.storage.local.get(
           // a video opened from YouTube plays either way: beside a playlist queue, not in it
           if (queueLockedReason() && !playlistIdFromUrl(n)) playVideoNow({ url: n, title: n });
           else addUrlToQueue(n);
-        } else if (ch) {
-          if (hasSaved) restoreSavedQueue(saved);
-          openChannel({ id: ch, name: params.get("name") || ch, handle: params.get("handle") || null });
         } else {
           if (hasSaved) restoreSavedQueue(saved);
           setTimeout(

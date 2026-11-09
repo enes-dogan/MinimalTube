@@ -9,7 +9,7 @@ const streamOnlyMode = () => streamWhileDownloading && streamOnly;
 const SETTINGS = [
   { key: "sponsorBlockEnabled", input: sponsorToggle, def: true, set: (on) => (sponsorBlockEnabled = on) },
   { key: "queuePersistEnabled", input: queuePersistToggle, def: false, set: (on) => (rememberQueue = on) },
-  { key: "openYouTubeLinks", input: ytLinksToggle, def: true, set: () => {} }, // read by background.js, content-youtube.js
+  { key: "openYouTubeLinks", input: ytLinksToggle, def: false, set: () => {} }, // read by background.js, content-youtube.js
   { key: "ytHistorySyncEnabled", input: ytHistoryToggle, def: true, set: (on) => (ytHistorySync = on) },
   { key: "streamWhileDownloading", input: streamToggle, def: true, set: (on) => (streamWhileDownloading = on) },
   { key: "streamOnly", input: streamOnlyToggle, def: true, set: (on) => (streamOnly = on), needs: streamToggle },

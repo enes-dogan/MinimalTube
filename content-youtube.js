@@ -442,24 +442,22 @@
     if (!reportFailure(res)) clearNotice(); // the extension closes this tab
   }
 
-  /* ------------------------------------------- links open in MinimalTube */
-  // With "Open YouTube links in MinimalTube" on, a click on a video, playlist or channel link here
-  // opens it in the app: YouTube changes pages without loading them, so the redirect in
-  // background.js (same links) never sees these. Ctrl/Shift/middle clicks load a page, so that
-  // catches them. Links into the video on this page (timestamps) stay with YouTube.
+  /* ------------------------------------------- videos open in MinimalTube */
+  // With "Open YouTube videos in MinimalTube" on, a click on a video link here opens it in the
+  // app (playlists and channels stay on YouTube): YouTube changes pages without loading them,
+  // so the redirect in background.js (same links) never sees these. Ctrl/Shift/middle clicks
+  // load a page, so that catches them. Links into the video on this page (timestamps) stay with YouTube.
   const APP_LINK_RE = new RegExp(
     [
       String.raw`^https?://(?:(?:www|m|music)\.)?youtube\.com/(?:watch\?(?:.*&)?v=[\w-]{11}|(?:shorts|live|embed|v)/[\w-]{11})`,
-      String.raw`^https?://(?:(?:www|m|music)\.)?youtube\.com/playlist\?(?:.*&)?list=[\w-]{2,64}`,
-      String.raw`^https?://(?:(?:www|m)\.)?youtube\.com/(?:@[^/?#]+|channel/UC[\w-]{22}|c/[^/?#]+|user/[^/?#]+)(?:/(?:videos|shorts|streams|featured))?/?(?:[?#].*)?$`,
       String.raw`^https?://youtu\.be/[\w-]{11}`,
     ].join("|"),
     "i",
   );
-  let linksToApp = true;
-  chrome.storage.local.get(["openYouTubeLinks"], (s) => (linksToApp = s.openYouTubeLinks !== false));
+  let linksToApp = false;
+  chrome.storage.local.get(["openYouTubeLinks"], (s) => (linksToApp = s.openYouTubeLinks === true));
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.openYouTubeLinks) linksToApp = changes.openYouTubeLinks.newValue !== false;
+    if (area === "local" && changes.openYouTubeLinks) linksToApp = changes.openYouTubeLinks.newValue === true;
   });
   const linkVideoId = (href) => {
     try {
