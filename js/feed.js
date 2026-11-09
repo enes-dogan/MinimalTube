@@ -611,7 +611,7 @@ function addFeedPage(data) {
 
 /* ---- Drawing ---- */
 const feedCardText = (item) =>
-  [item.title, item.views, item.thumbnail, item.duration, item.channel, timeAgo(item.timestamp), !!item.members_only].join("\n");
+  [item.title, item.views, item.thumbnail, item.duration, item.channel, (item.channels || []).map((ch) => ch.id), timeAgo(item.timestamp), !!item.members_only].join("\n");
 // Draws feedState.items over the cards already there: those stay (and with them the scroll
 // position, keyboard focus and open menus) unless their video changed; new ones fade in when
 // `marking`. New uploads (newer than everything shown before) arriving while you're scrolled

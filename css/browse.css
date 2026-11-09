@@ -186,6 +186,14 @@ body.browsing #browsePage {
 .vCard .vSub.vChan:hover {
   text-decoration: underline;
 }
+/* a collab: each of its channels is a link */
+.vCard .vChanLink {
+  color: var(--link);
+  cursor: pointer;
+}
+.vCard .vChanLink:hover {
+  text-decoration: underline;
+}
 #feedGrid .vCard.fresh {
   animation: fadeIn 0.4s var(--ease);
 }

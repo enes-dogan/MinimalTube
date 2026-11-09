@@ -658,13 +658,23 @@ function makeCard({ thumb, fallback, videoId, badge, video, title, lines = [], o
 }
 /**
  * The lines under a video card's title: its channel (a click opens the channel's page) and
- * "views · age". Missing parts are left out.
- * @param {{channel?: string, channel_id?: string, views?: number, timestamp?: number}} video
+ * "views · age". Missing parts are left out. A collab names each of its channels, each a link.
+ * @param {{channel?: string, channel_id?: string, channels?: Array<{id: string, name: string}>,
+ *   views?: number, timestamp?: number}} video
  * @returns {HTMLElement[]} For makeCard's `lines`.
  */
 function videoCardLines(video) {
   const chan = el("div", "vSub", video.channel || "");
-  if (video.channel_id) {
+  if (Array.isArray(video.channels) && video.channels.length > 1) {
+    chan.textContent = "";
+    video.channels.forEach((ch, i) => {
+      if (i) chan.append(i === video.channels.length - 1 ? " and " : ", ");
+      const link = el("span", "vChanLink", ch.name);
+      link.title = `Latest uploads from ${ch.name}`;
+      link.addEventListener("click", () => selectedChannel !== ch.id && openChannel({ id: ch.id, name: ch.name }));
+      chan.append(link);
+    });
+  } else if (video.channel_id) {
     chan.classList.add("vChan");
     chan.title = `Latest uploads from ${video.channel}`;
     chan.addEventListener("click", () => {

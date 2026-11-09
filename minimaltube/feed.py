@@ -549,6 +549,8 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
     items = [{
         "id": e["id"], "title": original_title(e["id"], e["title"]), "channel": display_channel(e),
         "channel_id": e["channel_id"],
+        # a collab's channels, each its own link in the app
+        "channels": (COLLABS.get(e["id"]) or {}).get("channels"),
         "duration": e.get("duration") or (SHORT_INFO.get(e["id"]) or {}).get("dur"),
         "views": e.get("views"),
         "timestamp": e["date"], "url": f"https://www.youtube.com/watch?v={e['id']}",
