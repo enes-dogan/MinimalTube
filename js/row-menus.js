@@ -477,6 +477,7 @@ function queueMenuEntries(item, btn) {
         title: item.title,
         url: item.url,
       },
+      "P",
     ),
     dl,
     {

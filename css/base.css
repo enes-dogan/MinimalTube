@@ -52,6 +52,30 @@ button {
     transform: translateY(0);
   }
 }
+/* Cards over the app (settings, welcome, shortcuts): they come in from above and leave
+   downwards while their blurred backdrop fades (overlays.css, CARD_OUT_MS in core.js) */
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes backdropOut {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    translate: 0 -28px;
+  }
+}
+@keyframes cardOut {
+  to {
+    opacity: 0;
+    translate: 0 28px;
+  }
+}
 
 /* ---- Accessibility ---- */
 @media (prefers-reduced-motion: reduce) {

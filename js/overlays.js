@@ -16,6 +16,9 @@ const SHORTCUT_LIST = [
   [["F"], "Fullscreen (or double-click the video)"],
   [["I"], "Mini player ↔ browse page"],
   [["T"], "Queue & downloads panel"],
+  [[","], "Settings"],
+  [["Ctrl", "V"], "Paste a YouTube link: it goes into the queue"],
+  [["C"], "Clear the queue (while that panel is open)"],
   [["Shift", "N"], "Next video"],
   [["Shift", "B"], "Previous video"],
   [["Esc"], "Close panels and popups, cancel Up next"],
@@ -114,6 +117,7 @@ function renderShortcutHelp() {
   card.addEventListener("scroll", paintMore, { passive: true });
   card.addEventListener("scrollend", () => helpState && (helpState.scrollGoal = null));
   paintMore();
+  if (!helpState.card) card.classList.add("cardEnter"); // only when it opens, not on a resize
   helpState.card = card;
   helpState.scrollGoal = null;
 }
@@ -179,7 +183,7 @@ function closeShortcutHelp(event) {
   document.removeEventListener("keydown", closeShortcutHelp, true);
   window.removeEventListener("resize", renderShortcutHelp);
   helpState = null;
-  state.overlay.remove();
+  removeAnimated(state.overlay);
   playerFrame.classList.remove("helpOpen");
   controls.style.display = state.controlsDisplay;
   captionsBtn.style.display = state.captionsDisplay;
@@ -202,7 +206,7 @@ document.getElementById("shortcutsBtn").addEventListener("click", (event) => {
  * opens it again.
  * ===================================================================== */
 const WELCOME_FEATURES = [
-  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock<b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link in Settings."],
+  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock<b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link anywhere in the app (<b>Ctrl+V</b>)."],
   ["◉", "Your subscriptions", "Add a channel on the Subscriptions tab with its @handle or link. New uploads from all of them arrive in one feed."],
   ["☰", "Queue and playlists", "⋮ → <b>Add next to queue</b> lines videos up; drag to reorder. Save the queue as a playlist with <b>+</b>, or any video with ⋮ → <b>Save to playlist</b>."],
   ["⟳", "Synced with YouTube", "Save one of your own playlists from its page on youtube.com and it stays two-way synced: changes on either side show up on the other. Finished videos show up at your <b>YouTube history</b> (Settings)."],
@@ -235,9 +239,18 @@ function showWelcome({ then } = {}) {
       </div>
     </div>`;
   document.body.appendChild(welcomeEl);
+  // the buttons stay at the bottom; while more of the card is below them, a shadow says so
+  const card = welcomeEl.querySelector(".welcomeCard"),
+    paintMore = () =>
+      card.classList.toggle("more", card.scrollTop + card.clientHeight < card.scrollHeight - 2),
+    resized = new ResizeObserver(paintMore);
+  card.addEventListener("scroll", paintMore, { passive: true });
+  resized.observe(card);
+  paintMore();
   const close = (next) => {
     if (!welcomeEl) return;
-    welcomeEl.remove();
+    resized.disconnect();
+    removeAnimated(welcomeEl);
     welcomeEl = null;
     document.removeEventListener("keydown", onKey, true);
     chrome.storage.local.set({ welcomeSeen: true });
@@ -252,6 +265,13 @@ function showWelcome({ then } = {}) {
   };
   welcomeEl.querySelector(".welcomeSkip").addEventListener("click", () => close(false));
   welcomeEl.querySelector(".welcomeNext").addEventListener("click", () => close(true));
+  // a click on the blurred page around the card closes it, except on the first start (then it's
+  // the start of the tour, closed only with its buttons)
+  let downOnBackdrop = false;
+  welcomeEl.addEventListener("pointerdown", (event) => (downOnBackdrop = event.target === welcomeEl));
+  welcomeEl.addEventListener("click", (event) => {
+    if (!then && downOnBackdrop && event.target === welcomeEl) close(false);
+  });
   document.addEventListener("keydown", onKey, true);
   welcomeEl.querySelector(".welcomeNext").focus({ preventScroll: true });
 }

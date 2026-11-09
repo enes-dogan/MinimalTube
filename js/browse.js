@@ -48,10 +48,10 @@ const feedState = {
   serverError: null,
 };
 
-// While the browse page is up, the queue panel and the settings panel are moved out of the
+// While the browse page is up, the queue panel (and the save-playlist dialog) are moved out of the
 // (small / hidden) player frame so the two buttons of the browse page can open them right on
 // top of the page; they go back into the player when it is expanded again.
-const panelHomes = [queuePanel, settingsPanel, byId("savePlModal")].map(
+const panelHomes = [queuePanel, byId("savePlModal")].map(
   (el) => ({
     el,
     parent: el.parentNode,

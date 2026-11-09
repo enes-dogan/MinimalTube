@@ -10,7 +10,8 @@ to fetch, download and stream videos. No YouTube page ever loads.
 
 - **Watch without the noise.** Any YouTube video plays ad-free in its own window,
   downloaded in the best quality so it's yours offline. On youtube.com, right-click a
-  video or link → *Add to MinimalTube queue*, or paste a link in Settings.
+  video or link → *Add to MinimalTube queue*, or paste a YouTube link anywhere in the app
+  (Ctrl+V) to add it to the queue.
 - **YouTube videos open here.** Turn on *Open YouTube videos in MinimalTube* in Settings (off
   by default) and a video or Shorts link opened in this browser (or in another app, when this
   browser is your default) plays in MinimalTube instead of on YouTube. Playlists and channels
@@ -145,9 +146,9 @@ Run the installer again if you move this folder.
   thumbnail to play; the player shrinks to a mini player while you browse (**I**).
 - **The side panel** (**T**, or the list button at the top right) holds the queue and your downloads.
 - **⋮ on any video or row** (or right-click it) for its actions; each has a letter shortcut key.
-- **Settings** (⚙): add a link to the queue, SponsorBlock, *Remember
-  queue*, *Open YouTube videos in MinimalTube*, YouTube history sync, *Stream while downloading* and *Stream only*. ★ shows
-  the tour again; **i** shows the keyboard shortcuts.
+- **Settings** (⚙ or **,**) opens over the app: SponsorBlock, *Stream while downloading*,
+  *Stream only*, *Open YouTube videos in MinimalTube*, YouTube history sync and *Remember
+  queue*. Switches apply right away. ★ shows the tour again; **i** shows the keyboard shortcuts.
 - **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
   another program already uses it.
 

@@ -209,6 +209,7 @@ function renderQueue() {
       : null;
   queuePlName.textContent = linked ? linked.name : "";
   queuePlName.title = linked ? `Playing the playlist "${linked.name}"` : "";
+  document.getElementById("queueEmpty").hidden = !!(queue && queue.items.length);
   if (!queue || !queue.items.length)
     return (
       (queueSection.style.display = "none"),

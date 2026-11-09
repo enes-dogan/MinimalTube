@@ -16,7 +16,6 @@
   transition: right 0.32s var(--ease);
 }
 #playerFrame.mini #playlistPanel,
-#playerFrame.mini #settingsPanel,
 #playerFrame.mini #floatBtns,
 #playerFrame.mini #topScrim,
 #playerFrame.mini #videoTitleOverlay,

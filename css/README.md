@@ -11,7 +11,7 @@ Load them in this order:
 | `controls.css` | Bottom control bar, seek bar, chapters and SponsorBlock marks, captions, centre flash. |
 | `overlays.css` | Anything floating over the video or the page: spinner, errors, toasts, the Undo bar, title, description popup, the two centre dialogs ("Up next", "Unsubscribe?"), the save-playlist modal, the keyboard-shortcuts overlay and the welcome screen. |
 | `indicators.css` | The round buttons on the video and the two download progress rings. |
-| `panels.css` | Settings panel and the queue / downloads side panel, including its rows. |
+| `panels.css` | The Settings card (over the whole app) and the queue / downloads side panel, including its rows. |
 | `menus.css` | The ⋮ menus (queue rows and browse cards) and the shared "Save to" popover. |
 | `browse.css` | Browse page: tabs, the OFFLINE badge, channel bar (Channels button, chips, "Showing only"), card grids, the video card and its watch-progress bar, the "new videos" pill, the skip link. |
 | `mini-player.css` | The small floating player shown while browsing. |

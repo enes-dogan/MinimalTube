@@ -297,6 +297,9 @@ document.addEventListener("keydown", (event) => {
   } else if (event.code === "KeyI") {
     event.preventDefault();
     toggleMiniPlayer();
+  } else if (event.key === "," && !event.shiftKey) {
+    event.preventDefault();
+    gearBtn.click();
   } else if (event.code === "KeyT" && !event.shiftKey) {
     event.preventDefault();
     if (document.body.classList.contains("browsing")) bpQueueBtn.click();
@@ -310,6 +313,14 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     const key = event.code === "KeyQ" ? "queue" : "library";
     setSectionCollapsed(key, !sectionEls[key].classList.contains("collapsed"));
+  } else if (
+    event.code === "KeyC" &&
+    !event.shiftKey &&
+    queuePanel.classList.contains("open") &&
+    !popupOpen()
+  ) {
+    event.preventDefault();
+    byId("clearQueueBtn").click();
   }
 });
 

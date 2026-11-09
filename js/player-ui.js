@@ -103,7 +103,7 @@ chrome.storage.local.get(
           if (document.body.classList.contains("browsing")) setBrowseTab(browseTab);
           return;
         }
-        if (n) urlInput.value = n; // With "Remember queue" on, bring the saved queue back first so
+        // With "Remember queue" on, bring the saved queue back first so
         // anything opened from YouTube is appended below it, not over it.
         const saved = rememberQueue ? await loadSavedQueue() : null,
           hasSaved = !!(saved && saved.items && saved.items.length);

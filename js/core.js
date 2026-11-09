@@ -35,8 +35,7 @@ const DEFAULT_SERVER = "http://127.0.0.1:7860",
   libraryCount = document.getElementById("libCount"),
   queuePanel = document.getElementById("playlistPanel"),
   queueList = document.getElementById("plList"),
-  urlInput = document.getElementById("urlinput"),
-  addUrlBtn = document.getElementById("playBtn"),
+  queuePasteInput = document.getElementById("queuePaste"),
   errorBox = document.getElementById("errorBox"),
   gearBtn = document.getElementById("gear"),
   settingsPanel = document.getElementById("settingsPanel"),
@@ -47,7 +46,6 @@ const DEFAULT_SERVER = "http://127.0.0.1:7860",
   streamToggle = document.getElementById("streamToggle"),
   streamOnlyToggle = document.getElementById("streamOnlyToggle"),
   seekBuffered = document.getElementById("seekBuffered"),
-  saveSettingsBtn = document.getElementById("saveSettings"),
   toastEl = document.getElementById("toast");
 /* ---- Connection state. The server owns it: whenever something of its fails it checks whether
  * YouTube answers, and every response carries the result (X-MinimalTube-Net). A browser network
@@ -293,6 +291,17 @@ function dialogKeys(dialog, buttons) {
     },
     true,
   );
+}
+// How long a card over the app (settings, welcome, shortcuts) takes to leave: css "cardOut".
+const CARD_OUT_MS = 200;
+/**
+ * Plays an overlay's leaving animation (class "leaving": the backdrop fades, its card slides
+ * down), then takes it out of the page. It stops taking clicks right away.
+ * @param {HTMLElement} el The overlay to remove.
+ */
+function removeAnimated(el) {
+  el.classList.add("leaving");
+  setTimeout(() => el.remove(), CARD_OUT_MS);
 }
 function restartAnimation(node, ...classes) {
   node.classList.remove(...classes);

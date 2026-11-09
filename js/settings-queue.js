@@ -4,7 +4,7 @@
 
 const streamOnlyMode = () => streamWhileDownloading && streamOnly;
 // The switches in Settings: storage key, checkbox, default, and the variable it sets. Read at
-// start (loadSettings), written on Save (saveSettings). One with `needs` can only be switched
+// start (loadSettings), saved the moment one is flipped. One with `needs` can only be switched
 // on together with that other switch (its row is dimmed otherwise).
 const SETTINGS = [
   { key: "sponsorBlockEnabled", input: sponsorToggle, def: true, set: (on) => (sponsorBlockEnabled = on) },
@@ -30,17 +30,41 @@ function loadSettings(stored) {
   });
   paintSettingDependencies();
 }
-function saveSettings() {
-  const values = {};
-  SETTINGS.forEach(({ key, input, set }) => {
+SETTINGS.forEach(({ key, input, set }) =>
+  input.addEventListener("change", () => {
     set(input.checked);
-    values[key] = input.checked;
-  });
-  return values;
+    chrome.storage.local.set({ [key]: input.checked });
+    if (key === "sponsorBlockEnabled" && !input.checked) {
+      sponsorSegments = [];
+      renderSeekMarks();
+    }
+    if (key === "queuePersistEnabled") {
+      if (input.checked) saveQueue();
+      else chrome.storage.local.remove("savedQueue");
+    }
+  }),
+);
+// Settings is a card over the whole app: it comes in from above and leaves downwards.
+let settingsLeaveTimer = 0,
+  settingsReturnFocus = null;
+function openSettings() {
+  clearTimeout(settingsLeaveTimer);
+  closeQueuePanel();
+  settingsReturnFocus = document.activeElement;
+  settingsPanel.classList.remove("leaving");
+  settingsPanel.classList.add("open");
+  gearBtn.classList.add("active");
+  settingsPanel.querySelector(".settingsCard").focus({ preventScroll: true });
+  showServerState();
 }
 function closeSettings() {
+  if (!settingsPanel.classList.contains("open")) return;
   settingsPanel.classList.remove("open");
+  settingsPanel.classList.add("leaving");
   gearBtn.classList.remove("active");
+  settingsLeaveTimer = setTimeout(() => settingsPanel.classList.remove("leaving"), CARD_OUT_MS);
+  if (settingsPanel.contains(document.activeElement) && settingsReturnFocus?.isConnected)
+    settingsReturnFocus.focus({ preventScroll: true });
 }
 function saveQueue() {
   syncLinkedPlaylist();
@@ -358,7 +382,8 @@ function resetStrayScroll() {
   if (document.scrollingElement.scrollLeft) document.scrollingElement.scrollLeft = 0;
 }
 document.addEventListener("keydown", (event) => {
-  if (!(event.ctrlKey || event.metaKey || event.altKey))
+  // in the Settings card Space flips the focused switch, it doesn't play / pause
+  if (!(event.ctrlKey || event.metaKey || event.altKey) && !settingsPanel.contains(event.target))
     if (!isTypingTarget(event.target) && hasVideoLoaded())
       if (event.code === "Space") {
         event.preventDefault();
@@ -382,7 +407,8 @@ document.addEventListener("keydown", (event) => {
       } else if (event.code === "KeyM") {
         event.preventDefault();
         if (!event.repeat) toggleMute();
-      } else if (event.code === "KeyC") {
+      } else if (event.code === "KeyC" && !queuePanel.classList.contains("open")) {
+        // with the side panel open, C is Clear queue (keyboard.js)
         event.preventDefault();
         if (!event.repeat) toggleCaptions();
       } else if (/^(Digit|Numpad)[0-9]$/.test(event.code) && !event.shiftKey) {
@@ -407,6 +433,7 @@ document.addEventListener("keyup", (event) => {
   if (
     event.code === "Space" &&
     !isTypingTarget(event.target) &&
+    !settingsPanel.contains(event.target) &&
     hasVideoLoaded()
   )
     event.preventDefault();
@@ -415,7 +442,7 @@ fullscreenBtn.addEventListener("click", toggleFullscreen);
 document.addEventListener("fullscreenchange", () => {
   fullscreenBtn.classList.toggle("is-fullscreen", !!document.fullscreenElement);
   const host = document.fullscreenElement || document.body;
-  host.append(undoBar, toastEl);
+  host.append(undoBar, toastEl, settingsPanel);
 });
 openFolderBtn.addEventListener("click", async () => {
   closeSettings();
@@ -494,26 +521,66 @@ async function runServerTask(task, text) {
 }
 restartServerBtn.addEventListener("click", () => runServerTask(restartServer, "Restarting the server…"));
 updateYtdlpBtn.addEventListener("click", () => runServerTask(updateYtdlp, "Updating yt-dlp…"));
-addUrlBtn.addEventListener("click", () => {
-  const typed = urlInput.value.trim();
-  if (typed) {
-    closeSettings();
-    urlInput.value = "";
-    addUrlToQueue(typed);
+// A YouTube link pasted anywhere in the app (outside text fields), or into the empty queue's
+// field, goes into the queue. Anything else is refused with a message.
+function youTubeLinkFrom(text) {
+  const raw = String(text || "").trim();
+  let url;
+  try {
+    url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    return null;
   }
+  return /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/i.test(url.hostname) ? url.href : null;
+}
+function queuePastedText(text) {
+  const link = youTubeLinkFrom(text);
+  if (!link) {
+    notify("That isn't a YouTube link", true, 3000);
+    return false;
+  }
+  addUrlToQueue(link);
+  return true;
+}
+document.addEventListener("paste", (event) => {
+  if (isTypingTarget(event.target)) return;
+  const text = event.clipboardData && event.clipboardData.getData("text");
+  if (!text || !text.trim()) return;
+  event.preventDefault();
+  closeSettings();
+  queuePastedText(text);
 });
-urlInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") addUrlBtn.click();
+function submitQueuePaste() {
+  if (queuePasteInput.value.trim() && queuePastedText(queuePasteInput.value)) queuePasteInput.value = "";
+}
+queuePasteInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") submitQueuePaste();
 });
+queuePasteInput.addEventListener("paste", () => setTimeout(submitQueuePaste, 0));
 gearBtn.addEventListener("click", () => {
-  const e = !settingsPanel.classList.contains("open");
-  settingsPanel.classList.toggle("open", e);
-  gearBtn.classList.toggle("active", e);
-  if (e) {
-    urlInput.focus();
-    urlInput.select();
-    showServerState();
+  if (settingsPanel.classList.contains("open")) closeSettings();
+  else openSettings();
+});
+document.getElementById("settingsClose").addEventListener("click", closeSettings);
+// Tab goes round the card's buttons and switches (not out to the page behind it); Enter flips a
+// switch, like Space
+settingsPanel.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && event.target.matches(".switch input")) {
+    event.preventDefault();
+    event.target.click();
   }
+  if (event.key !== "Tab") return;
+  const stops = [...settingsPanel.querySelectorAll("button, input")].filter((el) => !el.disabled);
+  const at = stops.indexOf(event.target),
+    next = at < 0 ? (event.shiftKey ? stops.length - 1 : 0) : (at + (event.shiftKey ? -1 : 1) + stops.length) % stops.length;
+  event.preventDefault();
+  stops[next].focus();
+});
+// a click on the blurred page around the card closes it (one that started in the card doesn't)
+let settingsDownOnBackdrop = false;
+settingsPanel.addEventListener("pointerdown", (event) => (settingsDownOnBackdrop = event.target === settingsPanel));
+settingsPanel.addEventListener("click", (event) => {
+  if (settingsDownOnBackdrop && event.target === settingsPanel) closeSettings();
 });
 // The port this player talks to its server on (7860, or the next free one when that was taken)
 const serverState = document.getElementById("serverState");
@@ -534,16 +601,6 @@ addLayer({
   isOpen: () => settingsPanel.classList.contains("open"),
   close: closeSettings,
   inside: [gearBtn, "#bpSettingsBtn"],
-});
-saveSettingsBtn.addEventListener("click", () => {
-  chrome.storage.local.set(saveSettings());
-  if (!sponsorBlockEnabled) {
-    sponsorSegments = [];
-    renderSeekMarks();
-  }
-  if (rememberQueue) saveQueue();
-  else chrome.storage.local.remove("savedQueue");
-  closeSettings();
 });
 const DOWNLOAD_ALL_LABEL = "⬇ Download all";
 let downloadAllResetTimer = null;
