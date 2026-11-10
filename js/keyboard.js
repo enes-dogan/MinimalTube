@@ -15,6 +15,11 @@ const roveKey = (el) =>
   (el._item && (el._item.id || el._item.url)) ||
   el.textContent;
 let menuReturn = null; // the list item a keyboard-opened ⋮ menu goes back to
+const scrollerOf = (el) => {
+  for (let up = el.parentElement; up; up = up.parentElement)
+    if (/auto|scroll/.test(getComputedStyle(up).overflowY)) return up;
+  return null;
+};
 function makeRovingList(list, { item, primary, onDelete }) {
   let current = null,
     currentIndex = 0,
@@ -39,13 +44,17 @@ function makeRovingList(list, { item, primary, onDelete }) {
     if (hasFocus && current && document.activeElement === document.body)
       current.focus({ preventScroll: true });
   }
-  function focusItem(el) {
+  // `glide`: a long jump (Home / End) scrolls smoothly, like the back-to-top button
+  function focusItem(el, glide = false) {
     if (!el) return;
     current = el;
     hasFocus = true;
     sync();
     el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const behavior = glide && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto";
+    // the top row: what sits above the list (the feed's channel bar) comes back into view too
+    if (!vertical(el, -1)) scrollerOf(list)?.scrollTo({ top: 0, behavior });
+    else el.scrollIntoView({ block: "nearest", inline: "nearest", behavior });
   }
   // the item in the next / previous visual row, closest to this one horizontally
   function vertical(el, dir) {
@@ -90,8 +99,8 @@ function makeRovingList(list, { item, primary, onDelete }) {
     else if (event.key === "ArrowRight") focusItem(all[at + 1]);
     else if (event.key === "ArrowUp") focusItem(vertical(el, -1));
     else if (event.key === "ArrowDown") focusItem(vertical(el, 1));
-    else if (event.key === "Home") focusItem(all[0]);
-    else if (event.key === "End") focusItem(all[all.length - 1]);
+    else if (event.key === "Home") focusItem(all[0], true);
+    else if (event.key === "End") focusItem(all[all.length - 1], true);
     else if (event.key === "Enter") activate(el);
     else if (menuKey) openMenu(el);
     else if (event.key === "Delete" && onDelete) onDelete(el);
@@ -115,7 +124,16 @@ function makeRovingList(list, { item, primary, onDelete }) {
   });
   new MutationObserver(sync).observe(list, { childList: true });
   sync();
-  return { focus: () => (sync(), focusItem(current)) };
+  return {
+    focus: () => (sync(), focusItem(current)),
+    // which item Tab comes back to: the one with this key (roveKey), else the first
+    select(key) {
+      current = (key && allItems().find((el) => roveKey(el) === key)) || null;
+      currentIndex = 0;
+      sync();
+    },
+    key: () => current && roveKey(current),
+  };
 }
 
 // Inside a ⋮ menu (or the "Save to" list it leads to) opened from the keyboard: ↑ / ↓ move,
@@ -274,6 +292,14 @@ function skipVideo(direction) {
   target.play();
 }
 
+// Shift held on its own: the browse tabs show the letter that opens them (Shift+S / P / D)
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Shift" && !(event.ctrlKey || event.metaKey || event.altKey) && !isTypingTarget(event.target))
+    document.body.classList.add("shiftHeld");
+});
+const dropShiftHint = () => document.body.classList.remove("shiftHeld");
+document.addEventListener("keyup", (event) => event.key === "Shift" && dropShiftHint());
+window.addEventListener("blur", dropShiftHint);
 function toggleMiniPlayer() {
   if (document.body.classList.contains("browsing")) {
     if (!playerFrame.classList.contains("empty")) exitBrowse(); // nothing to restore if nothing was played
@@ -288,7 +314,14 @@ document.addEventListener("keydown", (event) => {
     isTypingTarget(event.target)
   )
     return;
-  if (event.shiftKey && event.code === "KeyN") {
+  const tab = event.shiftKey && { KeyS: "subs", KeyP: "playlists", KeyD: "downloads" }[event.code];
+  if (event.key !== "Shift") document.body.classList.remove("shiftHeld"); // the hint did its job
+  if (tab && !popupOpen() && !settingsPanel.classList.contains("open")) {
+    // Shift + a tab's first letter: the browse page on that tab (plain letters are taken)
+    event.preventDefault();
+    if (!document.body.classList.contains("browsing")) enterBrowse(true);
+    setBrowseTab(tab);
+  } else if (event.shiftKey && event.code === "KeyN") {
     event.preventDefault();
     skipVideo(1);
   } else if (event.shiftKey && event.code === "KeyB") {
@@ -297,6 +330,16 @@ document.addEventListener("keydown", (event) => {
   } else if (event.code === "KeyI") {
     event.preventDefault();
     toggleMiniPlayer();
+  } else if (
+    event.code === "KeyX" &&
+    !event.shiftKey &&
+    playerFrame.classList.contains("mini") &&
+    !playerFrame.classList.contains("empty") &&
+    !popupOpen()
+  ) {
+    // X: the mini player's ✕ (the queue stays); the big player and fullscreen ignore it
+    event.preventDefault();
+    closeMiniPlayer();
   } else if (event.key === "," && !event.shiftKey) {
     event.preventDefault();
     gearBtn.click();

@@ -15,6 +15,8 @@ const SHORTCUT_LIST = [
   [["[", "]", "\\"], "Speed −/+ 0.1×, back to 1×"],
   [["F"], "Fullscreen (or double-click the video)"],
   [["I"], "Mini player ↔ browse page"],
+  [["X"], "Close the mini player (the queue stays)"],
+  [["Shift", "S / P / D"], "Subscriptions, Playlists, Downloads"],
   [["T"], "Queue & downloads panel"],
   [[","], "Settings"],
   [["Ctrl", "V"], "Paste a YouTube link: it goes into the queue"],
@@ -206,7 +208,7 @@ document.getElementById("shortcutsBtn").addEventListener("click", (event) => {
  * opens it again.
  * ===================================================================== */
 const WELCOME_FEATURES = [
-  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock<b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link anywhere in the app (<b>Ctrl+V</b>)."],
+  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock</b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link anywhere in the app (<b>Ctrl+V</b>)."],
   ["◉", "Your subscriptions", "Add a channel on the Subscriptions tab with its @handle or link. New uploads from all of them arrive in one feed."],
   ["☰", "Queue and playlists", "⋮ → <b>Add next to queue</b> lines videos up; drag to reorder. Save the queue as a playlist with <b>+</b>, or any video with ⋮ → <b>Save to playlist</b>."],
   ["⟳", "Synced with YouTube", "Save one of your own playlists from its page on youtube.com and it stays two-way synced: changes on either side show up on the other. Finished videos show up at your <b>YouTube history</b> (Settings)."],

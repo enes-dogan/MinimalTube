@@ -134,8 +134,12 @@ miniExpand.addEventListener("click", exitBrowse);
 [miniExpand].forEach((item) =>
   item.addEventListener("dblclick", (event) => event.stopPropagation()),
 );
+// Each tab keeps its own place on the page: they share one scrolling area
+const tabScroll = {};
 function setBrowseTab(tab) {
   if (tab !== "playlists") closePlaylistPage();
+  const switching = tab !== browseTab;
+  if (switching) tabScroll[browseTab] = browseBody.scrollTop;
   browseTab = tab;
   browseTabBtns.forEach((item) =>
     item.classList.toggle("active", item.dataset.tab === tab),
@@ -154,6 +158,7 @@ function setBrowseTab(tab) {
     renderDownloadCards();
     refreshLibrary(); // refresh the list from the server
   }
+  if (switching) browseBody.scrollTop = tabScroll[tab] || 0;
 }
 browseTabBtns.forEach((item) =>
   item.addEventListener("click", () => {

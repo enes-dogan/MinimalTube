@@ -406,13 +406,21 @@ function viewFromMemory() {
   });
   return { items: byNewest(items), bounds };
 }
+// Where the Subscriptions feed was (scroll, the card the keyboard was on) when a channel's page
+// replaced it: it goes back there. A channel's page always starts at its first video.
+let feedSpot = null;
+const feedCardOf = (key) => key && [...feedGrid.children].find((card) => roveKey(card) === key);
 function showFeed(refresh = true) {
   return feedMemoryReady.then(() => {
     if (subsLoaded && !subscriptions.length && !tempChannel) return showNoSubscriptions();
     const key = feedViewKey(),
+      left = feedState.key,
       channels = viewChannelIds().join(",");
-    if (key !== feedState.key || channels !== feedState.channels || !feedState.loaded) {
-      if (key !== feedState.key) browseBody.scrollTop = 0; // another channel starts at the top
+    if (key !== left || channels !== feedState.channels || !feedState.loaded) {
+      if (key !== left && left === "all") {
+        const card = feedCardOf(rovers.feed.key());
+        feedSpot = { top: browseBody.scrollTop, card: rovers.feed.key(), at: card && card.getBoundingClientRect().top };
+      }
       const { items, bounds } = viewFromMemory();
       feedState.epoch++;
       Object.assign(feedState, { key, channels, bounds, loaded: true, loading: false, failed: false });
@@ -420,6 +428,14 @@ function showFeed(refresh = true) {
       feedGrid.innerHTML = "";
       hideFeedNewPill();
       renderFeed();
+      if (key !== left) {
+        const spot = key === "all" ? feedSpot : null,
+          card = spot && feedCardOf(spot.card);
+        rovers.feed.select(spot && spot.card);
+        browseBody.scrollTop = spot ? spot.top : 0;
+        // the bars above the cards may have changed height: the card goes back where it was
+        if (card && spot.at != null) browseBody.scrollTop += card.getBoundingClientRect().top - spot.at;
+      }
     }
     finishFeedStatus();
     if (refresh) return refreshFeed();

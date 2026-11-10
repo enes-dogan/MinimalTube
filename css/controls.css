@@ -319,27 +319,59 @@ video::-webkit-media-text-track-display {
 #speedBadge:hover {
   background: var(--wash-4);
 }
+/* The slider pops up above the volume button, so nothing in the bar moves when it shows */
 #volumeWrap {
+  position: relative;
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
-#volume {
-  width: 0;
+#volumePop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  padding: 12px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-menu);
   opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 6px);
+  transition:
+    opacity 0.15s var(--ease),
+    transform 0.15s var(--ease),
+    visibility 0s linear 0.15s;
+}
+#volumePop::after {
+  /* the gap down to the button: the pointer crosses it without the slider closing */
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+#volumeWrap:focus-within #volumePop,
+#volumeWrap:hover #volumePop {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition:
+    opacity 0.15s var(--ease),
+    transform 0.15s var(--ease),
+    visibility 0s linear 0s;
+}
+#volume {
+  display: block;
+  /* vertical, full volume at the top */
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 20px;
+  height: 96px;
   margin: 0;
   accent-color: var(--accent);
   cursor: pointer;
-  transition:
-    width 0.2s var(--ease),
-    opacity 0.2s var(--ease),
-    margin 0.2s var(--ease);
-}
-#volumeWrap:focus-within #volume,
-#volumeWrap:hover #volume {
-  width: 72px;
-  opacity: 1;
-  margin-left: 4px;
 }
 
 /* ---- Chapter segments and SponsorBlock marks on the seek bar ---- */

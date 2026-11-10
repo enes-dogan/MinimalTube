@@ -37,6 +37,10 @@ body.browsing #browsePage {
   cursor: pointer;
   transition: background 0.15s var(--ease), color 0.15s var(--ease);
 }
+/* Shift held: the letter that opens each tab (keyboard.js) */
+body.shiftHeld #browseTabs button::first-letter {
+  color: var(--accent);
+}
 #browseTabs button:hover {
   color: var(--text);
 }
