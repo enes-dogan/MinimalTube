@@ -122,17 +122,48 @@
 }
 .settingsTools {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-top: 12px;
 }
 .settingsTools .btn {
   justify-content: center;
 }
-@media (max-width: 520px) {
+@media (max-width: 620px) {
   .settingsTools {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
+}
+/* the downloads' size cap: a number field dressed as the buttons beside it */
+#cacheLimitField {
+  gap: 6px;
+  cursor: text;
+}
+#cacheLimitInput {
+  width: 4.2em;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-input);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+#cacheLimitInput::-webkit-inner-spin-button,
+#cacheLimitInput::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+#cacheLimitInput:focus {
+  outline: 0;
+  border-color: var(--accent);
+}
+#cacheLimitMsg {
+  margin-top: 10px;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  text-align: center;
 }
 .settingsHint {
   margin-top: 10px;

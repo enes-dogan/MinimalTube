@@ -19,6 +19,7 @@ from .config import (
     CACHE_MAINTENANCE_INTERVAL_SECONDS,
     CACHE_MAX_AGE_DAYS,
     CACHE_MAX_BYTES,
+    DATA_DIR,
     VIDEO_ID_RE,
 )
 from .system import replace_file
@@ -424,17 +425,57 @@ def cleanup_old_files():
         except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
             pass
 
+# The most space downloads may take, set in Settings and kept in DATA_DIR/settings.json; the
+# oldest downloads go first when they take more.
+CACHE_LIMIT_GB_MIN, CACHE_LIMIT_GB_MAX = 16, 1024
+
+def _settings_path() -> Path:
+    return DATA_DIR / "settings.json"
+
+def cache_limit_gb() -> int:
+    """The downloads' size cap in GB: the one set in Settings, else CACHE_MAX_BYTES."""
+    try:
+        gb = json.loads(_settings_path().read_text(encoding="utf-8")).get("cache_max_gb")
+    except (OSError, ValueError, AttributeError):
+        gb = None
+    if isinstance(gb, int) and CACHE_LIMIT_GB_MIN <= gb <= CACHE_LIMIT_GB_MAX:
+        return gb
+    return CACHE_MAX_BYTES // 1024 ** 3
+
+def downloads_bytes() -> int:
+    total = 0
+    for f in cache_files():
+        try:
+            total += f.stat().st_size
+        except OSError:
+            pass
+    return total
+
+def set_cache_limit_gb(gb: int):
+    """Save a new size cap (the caller checked it: an int in range, not below downloads_bytes())."""
+    path = _settings_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data = data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        data = {}
+    data["cache_max_gb"] = gb
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data), encoding="utf-8")
+    replace_file(tmp, path)
+
 def enforce_cache_size_limit():
     files = sorted(cache_files(), key=lambda f: f.stat().st_mtime)
     total = sum(f.stat().st_size for f in files)
+    limit_gb = cache_limit_gb()
     i = 0
-    while total > CACHE_MAX_BYTES and i < len(files):
+    while total > limit_gb * 1024 ** 3 and i < len(files):
         f = files[i]
         try:
             size = f.stat().st_size
             remove_download(f)
             total -= size
-            print(f"[cache] removed (size cap {CACHE_MAX_BYTES // (1024**3)}GB): {f.name}")
+            print(f"[cache] removed (size cap {limit_gb}GB): {f.name}")
         except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
             pass
         i += 1

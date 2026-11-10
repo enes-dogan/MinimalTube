@@ -56,7 +56,50 @@ function openSettings() {
   gearBtn.classList.add("active");
   settingsPanel.querySelector(".settingsCard").focus({ preventScroll: true });
   showServerState();
+  loadCacheLimit();
 }
+// The downloads' size cap (16 to 1024 GB, the server keeps it). One below what the downloads
+// already take is refused: the folder opens so some can be deleted by hand.
+const cacheLimitInput = document.getElementById("cacheLimitInput"),
+  cacheLimitMsg = document.getElementById("cacheLimitMsg");
+let cacheLimitGb = null;
+function showCacheLimitMsg(text) {
+  cacheLimitMsg.textContent = text || "";
+  cacheLimitMsg.hidden = !text;
+}
+async function loadCacheLimit() {
+  showCacheLimitMsg("");
+  try {
+    cacheLimitGb = (await api("/cache-limit")).gb;
+    cacheLimitInput.value = cacheLimitGb;
+  } catch (err) {
+    logQuiet("downloads size cap", err);
+  }
+}
+async function saveCacheLimit() {
+  const gb = Number(cacheLimitInput.value);
+  if (!Number.isInteger(gb) || gb < 16 || gb > 1024) {
+    showCacheLimitMsg("Choose a size from 16 to 1024 GB.");
+    cacheLimitInput.value = cacheLimitGb ?? "";
+    return;
+  }
+  if (gb === cacheLimitGb) return showCacheLimitMsg("");
+  try {
+    cacheLimitGb = (await api("/cache-limit", { method: "PUT", body: { gb } })).gb;
+    cacheLimitInput.value = cacheLimitGb;
+    showCacheLimitMsg("");
+  } catch (err) {
+    cacheLimitInput.value = cacheLimitGb ?? "";
+    showCacheLimitMsg(firstLine(err.message));
+    if (/already take/.test(err.message)) api("/open-folder").catch((e) => logQuiet("open the videos folder", e));
+  }
+}
+cacheLimitInput.addEventListener("change", saveCacheLimit);
+cacheLimitInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  saveCacheLimit();
+});
 function closeSettings() {
   if (!settingsPanel.classList.contains("open")) return;
   settingsPanel.classList.remove("open");

@@ -84,6 +84,11 @@ from .media import (
     subtitle_path,
     thumb_path,
     youtube_ids,
+    CACHE_LIMIT_GB_MAX,
+    CACHE_LIMIT_GB_MIN,
+    cache_limit_gb,
+    downloads_bytes,
+    set_cache_limit_gb,
 )
 from .store import (
     clean_playlist_items,
@@ -880,6 +885,22 @@ def sponsorblock(video_id):
                 remember_sponsor_segments(video_id, segments)
             return jsonify({"segments": segments})
     return jsonify({"segments": cached_sponsor_segments(video_id) or []})
+
+@app.route("/cache-limit", methods=["GET", "PUT"])
+def cache_limit():
+    """The downloads' size cap: GET answers {"gb", "used_bytes", "min", "max"}; PUT {"gb": n}
+    sets it, refused (409) while the downloads already take more than n GB."""
+    if request.method == "PUT":
+        gb = (request.get_json(silent=True) or {}).get("gb")
+        if isinstance(gb, bool) or not isinstance(gb, int) or not CACHE_LIMIT_GB_MIN <= gb <= CACHE_LIMIT_GB_MAX:
+            return jsonify({"error": f"Choose a size from {CACHE_LIMIT_GB_MIN} to {CACHE_LIMIT_GB_MAX} GB."}), 400
+        used = downloads_bytes()
+        if used > gb * 1024 ** 3:
+            return jsonify({"error": f"Your downloads already take {used / 1024 ** 3:.1f} GB, more than "
+                                     f"{gb} GB. Delete some first.", "used_bytes": used}), 409
+        set_cache_limit_gb(gb)
+    return jsonify({"gb": cache_limit_gb(), "used_bytes": downloads_bytes(),
+                    "min": CACHE_LIMIT_GB_MIN, "max": CACHE_LIMIT_GB_MAX})
 
 @app.route("/open-folder")
 def open_folder():

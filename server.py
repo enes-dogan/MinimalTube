@@ -95,11 +95,10 @@ def main():
     from minimaltube.config import (
         CACHE_DIR,
         CACHE_MAX_AGE_DAYS,
-        CACHE_MAX_BYTES,
         MAX_PARALLEL_DOWNLOADS,
     )
     from minimaltube.downloads import download_worker, resume_running_downloads
-    from minimaltube.media import cache_maintenance_loop, run_cache_maintenance
+    from minimaltube.media import cache_limit_gb, cache_maintenance_loop, run_cache_maintenance
     from minimaltube.routes import app
 
     run_cache_maintenance()
@@ -114,7 +113,7 @@ def main():
     print(f"yt-dlp {ytdlp_version} ({source})")
     print(
         f"Cache directory: {CACHE_DIR} (auto-expires after {CACHE_MAX_AGE_DAYS}d, "
-        f"capped at {CACHE_MAX_BYTES // (1024**3)}GB)"
+        f"capped at {cache_limit_gb()}GB)"
     )
     serve(app, args.host, args.port)
 

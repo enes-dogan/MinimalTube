@@ -151,7 +151,8 @@ Run the installer again if you move this folder.
 - **⋮ on any video or row** (or right-click it) for its actions; each has a letter shortcut key.
 - **Settings** (⚙ or **,**) opens over the app: SponsorBlock, *Stream while downloading*,
   *Stream only*, *Open YouTube videos in MinimalTube*, YouTube history sync and *Remember
-  queue*. Switches apply right away. ★ shows the tour again; **i** shows the keyboard shortcuts.
+  queue*. Switches apply right away. *Max … GB* sets how much space downloads may take.
+  ★ shows the tour again; **i** shows the keyboard shortcuts.
 - **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
   another program already uses it.
 
@@ -179,8 +180,8 @@ On macOS and Windows:
 | What lets the extension start the server | `~/Library/Application Support/<browser>/NativeMessagingHosts/` | registry: `HKCU\Software\<browser>\NativeMessagingHosts\com.minimaltube.host` |
 
 Downloads older than 60 days are removed together with their thumbnails, captions and other
-saved info, thumbnails that nothing has shown for 60 days go too, and the folder is kept
-under 64 GB (`minimaltube/config.py`).
+saved info, thumbnails that nothing has shown for 60 days go too, and the downloads are kept
+under 64 GB, the oldest going first. Change that size in Settings (*Max … GB*, 16 to 1024).
 
 ## Updating
 
