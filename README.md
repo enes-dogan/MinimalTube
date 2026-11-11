@@ -149,7 +149,8 @@ Run the installer again if you move this folder.
 ## Using it
 
 - **Subscriptions / Playlists / Downloads** are the tabs of the browse page. Click a
-  thumbnail to play; the player shrinks to a mini player while you browse (**I**).
+  thumbnail to play; the player shrinks to a mini player while you browse (**I**). Its **›**
+  tucks it away at the window's edge, still playing; the **‹** left there brings it back.
 - **The side panel** (**T**, or the list button at the top right) holds the queue and your downloads.
 - **⋮ on any video or row** (or right-click it) for its actions; each has a letter shortcut key.
 - **Settings** (⚙ or **,**) opens over the app: SponsorBlock, *Stream while downloading*,

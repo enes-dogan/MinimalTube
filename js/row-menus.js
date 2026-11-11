@@ -598,6 +598,7 @@ function stopPlayback() {
   currentVideoId = null;
   queueIndex = -1;
   playerFrame.classList.add("empty");
+  playerFrame.classList.remove("tucked");
   clearSeekExtras();
   markActiveLibraryRow();
 }

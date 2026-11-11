@@ -2,9 +2,12 @@
 
 /* ---- Mini frame: most of the chrome is hidden ---- */
 
+body {
+  --miniRight: 18px; /* the mini player's gap to the window's right edge */
+}
 #playerFrame.mini {
   position: fixed;
-  right: 18px;
+  right: var(--miniRight);
   bottom: 18px;
   width: 400px;
   height: 225px;
@@ -13,7 +16,10 @@
   overflow: hidden;
   border: 1px solid var(--wash-3);
   box-shadow: var(--shadow-mini);
-  transition: right 0.32s var(--ease);
+  transition:
+    right 0.32s var(--ease),
+    transform 0.4s var(--ease),
+    box-shadow 0.4s var(--ease);
 }
 #playerFrame.mini #playlistPanel,
 #playerFrame.mini #floatBtns,
@@ -110,8 +116,93 @@
 }
 
 /* ---- It slides out from under the queue panel ---- */
-body.queueOpen #playerFrame.mini {
-  right: min(calc(var(--bpQueueW, 380px) + 12px), max(18px, calc(100vw - 418px)));
+body.queueOpen {
+  --miniRight: min(calc(var(--bpQueueW, 380px) + 12px), max(18px, calc(100vw - 418px)));
+}
+
+/* ---- Tucked away: off the window's right edge, still playing; the tab at the edge brings it
+   back (keyboard.js) ---- */
+#miniTuck {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  z-index: var(--z-mini-btns);
+  width: 24px;
+  height: 52px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--glass);
+  color: var(--white);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    opacity 0.35s var(--ease),
+    background 0.15s var(--ease);
+}
+#miniTuck svg,
+#miniUntuck svg {
+  width: 20px;
+  height: 20px;
+}
+#miniTuck:hover {
+  background: var(--glass-hover);
+}
+#playerFrame.mini #miniTuck {
+  display: flex;
+}
+#playerFrame.idle #miniTuck {
+  opacity: 0;
+  pointer-events: none;
+}
+#playerFrame.mini.tucked {
+  transform: translateX(calc(100% + var(--miniRight) + 24px));
+  box-shadow: none;
+  pointer-events: none;
+}
+#miniUntuck {
+  position: fixed;
+  right: calc(var(--miniRight) - 18px);
+  bottom: calc(18px + 225px / 2 - 28px); /* level with the middle of the player */
+  z-index: var(--z-mini-player);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--wash-3);
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: var(--panel-solid);
+  color: var(--text);
+  box-shadow: var(--shadow-menu);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(100%);
+  transition:
+    transform 0.25s var(--ease),
+    opacity 0.2s var(--ease),
+    visibility 0s linear 0.25s,
+    background 0.15s var(--ease);
+}
+#miniUntuck:hover {
+  background: var(--wash-2);
+}
+/* the tab comes in once the player has gone */
+body:has(#playerFrame.mini.tucked:not(.empty)) #miniUntuck {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    transform 0.25s var(--ease) 0.3s,
+    opacity 0.2s var(--ease) 0.3s,
+    visibility 0s linear 0.3s,
+    background 0.15s var(--ease);
 }
 
 /* ---- Closing animation ---- */
@@ -122,4 +213,7 @@ body.queueOpen #playerFrame.mini {
   transform-origin: 100% 100%;
   pointer-events: none;
   transition: opacity 0.22s var(--ease), transform 0.24s var(--ease);
+}
+#playerFrame.mini.tucked.closing {
+  transform: translateX(calc(100% + var(--miniRight) + 24px)); /* closed (X) while away: it stays there */
 }

@@ -119,6 +119,7 @@ function enterBrowse(noLoad) {
   if (noLoad !== true) setBrowseTab(browseTab);
 }
 function exitBrowse() {
+  playerFrame.classList.remove("tucked");
   const from = document.body.classList.contains("browsing") ? frameRect() : null;
   closeBpMenu();
   closeQueuePanel();

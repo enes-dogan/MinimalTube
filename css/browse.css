@@ -52,7 +52,7 @@ body.shiftHeld #browseTabs button::first-letter {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 24px 290px;
+  padding: 18px 24px 24px;
 }
 .bpView {
   display: none;

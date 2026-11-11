@@ -387,3 +387,11 @@ function closeMiniPlayer() {
   }, 240);
 }
 miniClose.addEventListener("click", closeMiniPlayer);
+// Tucked away at the window's right edge, still playing; the tab left there brings it back
+const miniTuck = byId("miniTuck");
+miniTuck.addEventListener("click", (event) => {
+  event.stopPropagation(); // not the mini window's own click (play / pause)
+  playerFrame.classList.add("tucked");
+});
+miniTuck.addEventListener("dblclick", (event) => event.stopPropagation());
+byId("miniUntuck").addEventListener("click", () => playerFrame.classList.remove("tucked"));
