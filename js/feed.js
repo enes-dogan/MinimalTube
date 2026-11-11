@@ -715,7 +715,7 @@ const feedNewPill = document.createElement("button");
 feedNewPill.type = "button";
 feedNewPill.id = "feedNewPill";
 feedNewPill.className = "btn btn-tint";
-subsView.prepend(feedNewPill);
+byId("subsBar").append(feedNewPill);
 let feedNewCount = 0;
 function showFeedNewPill(count) {
   feedNewCount += count;

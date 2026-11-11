@@ -369,11 +369,18 @@ browseBody.addEventListener(
     if (backToTopFrame) return;
     backToTopFrame = requestAnimationFrame(() => {
       backToTopFrame = 0;
+      browseBody.classList.toggle("scrolled", browseBody.scrollTop > 0); // the sticky bars' shadow
       backToTop.classList.toggle("show", browseBody.scrollTop > BACK_TO_TOP_ROWS * cardRowHeight());
     });
   },
   { passive: true },
 );
+// the sticky bar's real height (it wraps on a narrow window), for browse.css's scroll-padding
+const stickyBars = [byId("subsBar"), byId("plHead")],
+  stickyBarsSize = new ResizeObserver(() =>
+    browseBody.style.setProperty("--stickyH", `${Math.max(...stickyBars.map((bar) => bar.offsetHeight))}px`),
+  );
+stickyBars.forEach((bar) => stickyBarsSize.observe(bar));
 backToTop.addEventListener("click", () => {
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   browseBody.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
