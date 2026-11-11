@@ -415,6 +415,13 @@
 #librarySection.collapsed {
   flex: 0 0 59px;
 }
+/* folded: its list goes once the section has closed (else a pixel row of it can peek out under the
+   header when the header is a touch shorter than the folded height) */
+.collapsed > #plList,
+.collapsed > #libList {
+  visibility: hidden;
+  transition: visibility 0s linear 0.32s;
+}
 .plHeader:hover {
   background: var(--wash-1);
 }

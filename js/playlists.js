@@ -69,8 +69,6 @@ function loadPlaylistIntoQueue(pl, startIndex = 0) {
   queueIndex = start;
   resetDownloadAllButton();
   renderQueue();
-  queuePanel.classList.add("open");
-  queueToggleBtn.classList.add("active");
   refreshLibrary();
   markActiveQueueRow();
   scrollActiveQueueRowIntoView();

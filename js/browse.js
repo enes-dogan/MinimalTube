@@ -223,6 +223,7 @@ function closeBpMenu() {
   bpMenuAnchor = null;
 }
 function showBpMenu(anchor, entries) {
+  closeSaveToMenu(); // another card's ⋮: the "Save to" list of the last one goes
   clearInterval(bpDotsTimer);
   menuReopen = () => showBpMenu(anchor, entries);
   bpDotsTimer = fillMenu(bpMenu, entries, closeBpMenu);
