@@ -97,14 +97,18 @@
 #captionsBtn.active:hover {
   background: var(--accent-dim);
 }
-#volumeIcon .icon-vol-mute {
+/* the icon follows the volume: muted (or 0), up to 33 %, up to 66 %, above */
+#volumeIcon svg {
   display: none;
 }
-#volumeIcon.is-muted .icon-vol-on {
-  display: none;
+#volumeIcon[data-level="0"] .vol-0,
+#volumeIcon[data-level="1"] .vol-1,
+#volumeIcon[data-level="2"] .vol-2,
+#volumeIcon[data-level="3"] .vol-3 {
+  display: block;
 }
-#volumeIcon.is-muted .icon-vol-mute {
-  display: flex;
+#volumeIcon[data-level="0"] {
+  color: var(--danger);
 }
 
 /* ---- Subtitle cues ---- */

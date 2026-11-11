@@ -612,16 +612,23 @@ volumeInput.addEventListener("input", () => {
   if (video.muted && video.volume > 0) video.muted = false;
 });
 volumeIcon.addEventListener("click", toggleMute);
+function paintVolumeIcon() {
+  const v = video.muted ? 0 : video.volume;
+  volumeIcon.dataset.level = v <= 0 ? "0" : v > 0.66 ? "3" : v > 0.33 ? "2" : "1";
+}
 video.addEventListener("volumechange", () => {
   volumeInput.value = video.muted ? 0 : video.volume;
-  volumeIcon.classList.toggle("is-muted", video.muted);
+  paintVolumeIcon();
   savePlaybackPrefs();
 });
-volumeInput.addEventListener(
+// the wheel over the button or its slider: up louder (and unmuted, as ↑ does), down quieter
+document.getElementById("volumeWrap").addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
-    setVolume(video.volume + (event.deltaY < 0 ? 0.05 : -0.05));
+    const up = event.deltaY < 0;
+    if (up && video.muted) video.muted = false;
+    setVolume(video.volume + (up ? 0.05 : -0.05));
   },
   {
     passive: false,
