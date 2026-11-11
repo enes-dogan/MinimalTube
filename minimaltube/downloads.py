@@ -98,6 +98,7 @@ def download_job(video_id: str, url: str):
         remember_release_date(video_id, info)
         remember_meta(video_id, info)
         remember_thumbnail(video_id)
+        remember_thumbnail(video_id, large=True)  # its card offline
     except Exception as e:
         if is_cancelled(video_id):
             finish_cancel(video_id)

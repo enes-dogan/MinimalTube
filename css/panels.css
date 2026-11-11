@@ -749,3 +749,11 @@
 #playlistPanel.bpFloat:not(.open) {
   box-shadow: none;
 }
+
+/* a phone-narrow window: the side panel takes all of it */
+@media (max-width: 600px) {
+  #playlistPanel {
+    width: 100%;
+    max-width: 100%;
+  }
+}

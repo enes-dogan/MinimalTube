@@ -589,15 +589,28 @@ whenNetChanges((offline) => {
     img.src = img._first;
   });
 });
-function makeThumbImg(url, fallback) {
+// A card's width at each window width (the grid's columns, see browse.css): the browser picks the
+// server's 1280 x 720 thumbnail for anything bigger than the 320 x 180 one
+const CARD_SIZES = "(max-width: 575px) 100vw, (max-width: 883px) 50vw, (max-width: 1695px) 34vw, 25vw";
+function makeThumbImg(url, fallback, large = false) {
   const img = el("img");
   img.loading = "lazy";
   img.decoding = "async";
   img.alt = "";
   img.referrerPolicy = "no-referrer";
+  if (large && url.startsWith(`${serverBase}/thumb/`)) {
+    img.srcset = `${url} 320w, ${url}?size=720 1280w`;
+    img.sizes = CARD_SIZES;
+  }
   img.src = img._first = url;
   img.addEventListener("load", () => img.classList.remove("failed"));
   img.addEventListener("error", () => {
+    // the large one isn't there (offline, never fetched): the 320 x 180 one, then YouTube's
+    if (img.hasAttribute("srcset")) {
+      img.removeAttribute("srcset");
+      img.removeAttribute("sizes");
+      return;
+    }
     if (fallback && img.src !== fallback) {
       img.src = fallback;
     } else if (img._retried && !isOffline()) img.remove();
@@ -611,7 +624,7 @@ function makeThumbImg(url, fallback) {
 }
 function makeThumb(url, fallback) {
   const thumb = el("div", "vThumb");
-  if (url) thumb.appendChild(makeThumbImg(url, fallback));
+  if (url) thumb.appendChild(makeThumbImg(url, fallback, true));
   return thumb;
 }
 function paintFeedDownloaded(card) {

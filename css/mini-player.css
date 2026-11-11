@@ -4,13 +4,20 @@
 
 body {
   --miniRight: 18px; /* the mini player's gap to the window's right edge */
+  /* its width: 400 px, growing with big screens up to 640; a narrow window gets one that fits */
+  --miniW: clamp(400px, 25vw, 640px);
+}
+@media (max-width: 760px) {
+  body {
+    --miniW: min(400px, calc(100vw - 36px));
+  }
 }
 #playerFrame.mini {
   position: fixed;
   right: var(--miniRight);
   bottom: 18px;
-  width: 400px;
-  height: 225px;
+  width: var(--miniW);
+  height: calc(var(--miniW) * 9 / 16);
   z-index: var(--z-mini-player);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -117,7 +124,7 @@ body {
 
 /* ---- It slides out from under the queue panel ---- */
 body.queueOpen {
-  --miniRight: min(calc(var(--bpQueueW, 380px) + 12px), max(18px, calc(100vw - 418px)));
+  --miniRight: min(calc(var(--bpQueueW, 380px) + 12px), max(18px, calc(100vw - var(--miniW) - 18px)));
 }
 
 /* ---- Tucked away: off the window's right edge, still playing; the tab at the edge brings it
@@ -166,7 +173,7 @@ body.queueOpen {
 #miniUntuck {
   position: fixed;
   right: calc(var(--miniRight) - 18px);
-  bottom: calc(18px + 225px / 2 - 28px); /* level with the middle of the player */
+  bottom: calc(18px + var(--miniW) * 9 / 32 - 28px); /* level with the middle of the player */
   z-index: var(--z-mini-player);
   display: flex;
   align-items: center;

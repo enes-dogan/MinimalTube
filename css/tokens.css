@@ -96,6 +96,8 @@
   --fs-2xl: 18px;
   --fs-3xl: 24px;
   --fs-4xl: 30px;
+  --fs-card-title: 16px; /* a video card's title and the lines under it: YouTube's sizes */
+  --fs-card-line: 14px;
 
   /* Layers, bottom to top. Inside the player frame: */
   --z-scrim: 15;

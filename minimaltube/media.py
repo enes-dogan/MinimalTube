@@ -106,13 +106,26 @@ def cached_release_date(video_id: str):
         return False, None
     return True, (text if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) else None)
 
-def thumb_path(video_id: str) -> Path:
-    return CACHE_DIR / f"{video_id}.jpg"
+# Two sizes: 320 x 180 for the small rows (<id>.jpg), 1280 x 720 for the cards, which YouTube-sized
+# cards on a big screen need (<id>.hq.webp: WebP is half the size of YouTube's JPEG; <id>.hq.jpg
+# when there's only a JPEG). A video without a 720p thumbnail gets the 480 x 360 one (letterboxed
+# 4:3: the card crops the bars off).
+THUMB_SOURCES = ("vi/{id}/mqdefault.jpg", "vi/{id}/hqdefault.jpg")
+LARGE_THUMB_SOURCES = ("vi_webp/{id}/hq720.webp", "vi_webp/{id}/maxresdefault.webp",
+                       "vi/{id}/hq720.jpg", "vi/{id}/hqdefault.jpg")
+THUMB_NAMES = ("{id}.jpg", "{id}.hq.webp", "{id}.hq.jpg")
 
-def fetch_thumbnail_bytes(video_id: str):
-    for name in ("mqdefault.jpg", "hqdefault.jpg"):
+def thumb_path(video_id: str, large: bool = False) -> Path:
+    """Where a video's thumbnail is kept; the large one as whichever kind it was saved in."""
+    if not large:
+        return CACHE_DIR / f"{video_id}.jpg"
+    webp = CACHE_DIR / f"{video_id}.hq.webp"
+    return webp if webp.exists() else CACHE_DIR / f"{video_id}.hq.jpg"
+
+def fetch_thumbnail_bytes(video_id: str, large: bool = False):
+    for name in LARGE_THUMB_SOURCES if large else THUMB_SOURCES:
         try:
-            req = urllib.request.Request(f"https://i.ytimg.com/vi/{video_id}/{name}",
+            req = urllib.request.Request(f"https://i.ytimg.com/{name.format(id=video_id)}",
                                          headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = resp.read()
@@ -122,19 +135,22 @@ def fetch_thumbnail_bytes(video_id: str):
             continue
     return None
 
-def remember_thumbnail(video_id: str):
-    """Keep a video's thumbnail on disk so it shows offline. Returns its path or None."""
+def remember_thumbnail(video_id: str, large: bool = False):
+    """Keep a video's thumbnail on disk so it shows offline (`large`: the 1280 x 720 one).
+    Returns its path or None."""
     if not video_id or not VIDEO_ID_RE.match(video_id):
         return None
-    p = thumb_path(video_id)
+    p = thumb_path(video_id, large)
     if p.exists():
         return p
-    data = fetch_thumbnail_bytes(video_id)
+    data = fetch_thumbnail_bytes(video_id, large)
     if not data:
         return None
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        p = CACHE_DIR / f"{video_id}.hq.webp"
     try:
         # one temp file per thread: the same thumbnail can be asked for twice at once
-        tmp = CACHE_DIR / f"{video_id}.jpg.{threading.get_ident()}.tmp"
+        tmp = CACHE_DIR / f"{p.name}.{threading.get_ident()}.tmp"
         tmp.write_bytes(data)
         tmp.replace(p)
         return p
@@ -485,10 +501,11 @@ def cleanup_unused_thumbnails():
     CACHE_MAX_AGE_DAYS (a download's thumbnail goes with the download)."""
     cutoff = time.time() - CACHE_MAX_AGE_DAYS * 86400
     removed = 0
-    for f in CACHE_DIR.glob("*.jpg"):
+    for f in [*CACHE_DIR.glob("*.jpg"), *CACHE_DIR.glob("*.webp")]:
+        vid = f.name.split(".", 1)[0]  # <id>.jpg and the large <id>.hq.webp / .hq.jpg
         try:
-            if (VIDEO_ID_RE.match(f.stem) and not cached_path(f.stem).exists()
-                    and f.stat().st_mtime < cutoff):
+            if (VIDEO_ID_RE.match(vid) and f.name in [n.format(id=vid) for n in THUMB_NAMES]
+                    and not cached_path(vid).exists() and f.stat().st_mtime < cutoff):
                 f.unlink()
                 removed += 1
         except OSError:  # gone already, or in use (Windows won't delete it): the next sweep

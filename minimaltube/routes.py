@@ -316,17 +316,20 @@ def live_bytes(video_id, format_id):
 
 @app.route("/thumb/<vid:video_id>")
 def thumb(video_id):
-    """A video's thumbnail from the cache folder. The first time it's asked for, it's fetched
-    from YouTube and kept there, so every thumbnail shown once also shows offline."""
-    p = thumb_path(video_id)
+    """A video's thumbnail from the cache folder (320 x 180; `?size=720`: 1280 x 720, for the
+    cards). The first time it's asked for, it's fetched from YouTube and kept there, so every
+    thumbnail shown once also shows offline."""
+    large = request.args.get("size") == "720"
+    p = thumb_path(video_id, large)
     if p.exists():
         mark_thumbnail_used(p)
     elif not is_online():
         return "", 404
-    elif not remember_thumbnail(video_id):
+    elif not remember_thumbnail(video_id, large):
         internet_up()  # a failed fetch may be a lost connection: the next ones don't wait for it
         return "", 404
-    return send_file(p, mimetype="image/jpeg", max_age=86400)
+    p = thumb_path(video_id, large)  # the large one may have been saved as WebP
+    return send_file(p, mimetype="image/webp" if p.suffix == ".webp" else "image/jpeg", max_age=86400)
 
 @app.route("/playlist")
 def playlist():
