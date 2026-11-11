@@ -119,7 +119,10 @@ chrome.storage.local.get(
           if (queueLockedReason() && !playlistIdFromUrl(n)) playVideoNow({ url: n, title: n });
           else addUrlToQueue(n);
         } else {
-          if (hasSaved) restoreSavedQueue(saved);
+          if (hasSaved) {
+            restoreSavedQueue(saved);
+            resumeSavedVideo();
+          }
           setTimeout(
             () =>
               document.body.classList.contains("browsing") &&

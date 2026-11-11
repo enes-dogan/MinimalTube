@@ -11,9 +11,11 @@ whenNetChanges((offline) => {
   const pending = pendingPlay;
   if (offline || !pending || pending.token !== loadToken) return;
   pendingPlay = null;
-  playVideo(pending.url, { gentle: false });
+  playVideo(pending.url, { gentle: false, autoplay: pending.autoplay });
 });
-async function playVideo(rawUrl, { gentle = true } = {}) {
+// `autoplay: false` loads the video and stops at its resume point (the app's start bringing back
+// the last video of a remembered queue).
+async function playVideo(rawUrl, { gentle = true, autoplay = true } = {}) {
   // Offline, a video that isn't downloaded can't play: keep the one being watched (and the
   // queue pointing at it).
   if (isOffline() && isWatching() && !isDownloadedId(videoIdFromUrl(rawUrl))) {
@@ -70,7 +72,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
     if (job.status === "streaming") {
       // stream only: nothing downloads, unless this browser can't play the stream
       const picks = LiveStream.pick(job.stream, { adaptive: true });
-      if (picks && (await startLiveStream(videoId, picks, job, stale))) return;
+      if (picks && (await startLiveStream(videoId, picks, job, stale, undefined, autoplay))) return;
       if (stale()) return;
       notify("This video can't be streamed here, so it's downloading instead.", true, 4000);
       job = await api(preparePath(rawUrl, false));
@@ -79,7 +81,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
     }
     if (job.status !== "ready" && streamWhileDownloading) {
       const picks = LiveStream.pick(job.stream);
-      if (picks && (await startLiveStream(videoId, picks, job, stale))) {
+      if (picks && (await startLiveStream(videoId, picks, job, stale, undefined, autoplay))) {
         followDownload(videoId, token);
         return;
       }
@@ -105,7 +107,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
       { once: true },
     );
     video.playbackRate = playbackRate;
-    await video.play().catch(() => {});
+    if (autoplay) await video.play().catch(() => {});
     setDlWait(false);
     controls.style.display = "flex";
     refreshLibrary();
@@ -117,7 +119,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
     setLoadFailed(true);
     controls.style.display = "flex";
     if (isOffline()) {
-      pendingPlay = { url: rawUrl, token };
+      pendingPlay = { url: rawUrl, token, autoplay };
       showError(
         `${OFFLINE_TEXT}.\nThis video isn't downloaded yet; it will start when you're back online.`,
       );
@@ -129,7 +131,7 @@ async function playVideo(rawUrl, { gentle = true } = {}) {
     if (!stale()) loadingBox.style.display = "none";
   }
 }
-async function startLiveStream(videoId, picks, job, stale, startAt) {
+async function startLiveStream(videoId, picks, job, stale, startAt, autoplay = true) {
   const stream = new LiveStream(video, {
     base: serverBase,
     videoId,
@@ -149,7 +151,7 @@ async function startLiveStream(videoId, picks, job, stale, startAt) {
       return false;
     }
     video.playbackRate = playbackRate;
-    await video.play().catch(() => {});
+    if (autoplay) await video.play().catch(() => {});
     setDlWait(false);
     if (job.has_subtitles) attachSubtitleTrack(videoId);
     else waitForSubtitles(videoId);

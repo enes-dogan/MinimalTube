@@ -154,7 +154,8 @@ Run the installer again if you move this folder.
 - **⋮ on any video or row** (or right-click it) for its actions; each has a letter shortcut key.
 - **Settings** (⚙ or **,**) opens over the app: SponsorBlock, *Stream while downloading*,
   *Stream only*, *Open YouTube videos in MinimalTube*, YouTube history sync and *Remember
-  queue*. Switches apply right away. *Max … GB* sets how much space downloads may take.
+  queue* (the app then also comes back with the last video, paused where you left it).
+  Switches apply right away. *Max … GB* sets how much space downloads may take.
   ★ shows the tour again; **i** shows the keyboard shortcuts.
 - **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
   another program already uses it.

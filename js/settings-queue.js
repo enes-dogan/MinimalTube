@@ -215,6 +215,14 @@ function setQueueFromPlaylist(playlist) {
   } else clearQueue();
 }
 
+// With "Remember queue" on, the app comes back with the video it showed last: loaded at its place
+// in the queue and where it was stopped (its watch progress), paused.
+function resumeSavedVideo() {
+  const item = queue && queueIndex >= 0 ? queue.items[queueIndex] : null;
+  if (!item) return;
+  playSource = "queue";
+  playVideo(item.url, { gentle: false, autoplay: false });
+}
 function restoreSavedQueue(saved) {
   queue = {
     items: saved.items,
