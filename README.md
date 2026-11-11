@@ -3,7 +3,10 @@
 YouTube without the noise: your subscriptions, playlists and downloads in one calm player.
 
 MinimalTube is a Chromium-based browser extension plus a small local Python server. The extension is the
-app you see (opened as its own window from your application menu); the server uses yt-dlp
+app you see (opened as its own window from your application menu, or from the toolbar button
+as a window or a browser tab; only one runs at a time, the button left of ★ in Settings moves
+it between the two without interrupting anything, and YouTube links you open start it the way
+you used it last); the server uses yt-dlp
 to fetch, download and stream videos. No YouTube page ever loads.
 
 ## What it does

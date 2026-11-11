@@ -2,6 +2,10 @@
  * the server API (api, requestDownloads), small DOM helpers and the layer stack (Esc / click outside).
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
+// One player at a time: opened with nothing to open while another runs, this one hands over to
+// it and is closed (background.js, playerOpened)
+chrome.runtime.sendMessage({ type: "minimaltube-player-opened", bare: !location.search }, () => chrome.runtime.lastError);
+
 const DEFAULT_SERVER = "http://127.0.0.1:7860",
   video = document.getElementById("video"),
   placeholder = document.getElementById("placeholder"),

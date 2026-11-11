@@ -37,10 +37,12 @@ async function addToQueue() {
   window.close();
 }
 
-function openPlayer() {
+// An open player (window or tab) is brought forward; otherwise one opens the way the button says.
+function openPlayer(style) {
   chrome.runtime.sendMessage({
     type: "minimaltube-open-window",
     playerUrl: chrome.runtime.getURL("player.html"),
+    style,
   });
   window.close();
 }
@@ -49,4 +51,5 @@ addBtn.addEventListener("click", addToQueue);
 urlInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") addToQueue();
 });
-openAppBtn.addEventListener("click", openPlayer);
+openAppBtn.addEventListener("click", () => openPlayer("window"));
+document.getElementById("openTab").addEventListener("click", () => openPlayer("tab"));

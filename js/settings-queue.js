@@ -57,7 +57,29 @@ function openSettings() {
   settingsPanel.querySelector(".settingsCard").focus({ preventScroll: true });
   showServerState();
   loadCacheLimit();
+  paintViewSwitch();
 }
+// Its own window <-> a browser tab: the page itself moves (background.js, movePlayer), so a video
+// keeps playing and the queue, the page and everything else stay as they are.
+const viewSwitchBtn = document.getElementById("viewSwitchBtn"),
+  VIEW_ICONS = {
+    window: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7zM5 5h5V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-5h-2v5H5V5z"/></svg>',
+    tab: '<svg viewBox="0 0 512 512" fill="currentColor" fill-rule="evenodd"><path d="M98 425.7C82.1 422.1 69.5 410 65.5 394.4C64.1 389 64 372.7 64.2 253.4L64.5 118.5L66.9 112.7C71.3 101.6 81.2 92 92.7 87.7L98.5 85.5L252 85.2C360.5 85 407.4 85.2 411.9 86C424.5 88.2 435.3 95.5 441.7 106.1C448.3 117.2 448 109.7 448 256C448 402.3 448.3 394.8 441.7 405.9C435.4 416.5 424.5 423.8 411.9 426C407.7 426.7 393.3 427 370.5 426.8L335.5 426.5L330.8 423.7C322.4 418.8 318.4 408.8 321.1 399.3C322.7 393.4 329.2 386.6 334.6 385.1C337 384.4 351.2 384 371.8 384L405 384L405 277.5L405 171L256 171L107 171L107 277.5L107 384L140.2 384C160.8 384 175 384.4 177.4 385.1C182.8 386.6 189.3 393.4 190.9 399.3C193.6 408.8 189.6 418.8 181.2 423.7L176.5 426.5L140 426.7C114.2 426.8 101.9 426.5 98 425.7ZM249.8 425.6C244.1 423.5 241.3 421.4 238.2 416.8L235.5 412.6L235.2 355.8L235 299L215.4 299C194.9 299 191.4 298.4 187.7 294.3C186.7 293.2 185.6 290.6 185.3 288.6L184.7 284.9L217.1 252.4C243.5 226 250.2 219.8 253.3 218.9C261.3 216.8 261.3 216.8 294.9 250.4C323.6 279.1 326.2 282 326.6 285.6C327 288.4 326.5 290.4 325 292.8C321.6 298.3 318.5 299 296.6 299L277 299L276.8 355.9L276.5 412.8L273.5 417.2C268 424.9 257.7 428.6 249.8 425.6Z"/></svg>',
+  };
+async function paintViewSwitch() {
+  const win = await chrome.windows.getCurrent().catch(() => null),
+    inTab = !!win && win.type === "normal",
+    label = inTab ? "Move to its own window" : "Move into a browser tab";
+  viewSwitchBtn.innerHTML = inTab ? VIEW_ICONS.window : VIEW_ICONS.tab;
+  viewSwitchBtn.title = label;
+  viewSwitchBtn.setAttribute("aria-label", label);
+}
+viewSwitchBtn.addEventListener("click", async () => {
+  closeSettings();
+  if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+  const res = await chrome.runtime.sendMessage({ type: "minimaltube-switch-view" }).catch(() => null);
+  if (!res || !res.ok) notify(`Couldn't move MinimalTube: ${firstLine((res && res.error) || "no answer")}`, true, 5000);
+});
 // The downloads' size cap (16 to 1024 GB, the server keeps it). One below what the downloads
 // already take is refused: the folder opens so some can be deleted by hand.
 const cacheLimitInput = document.getElementById("cacheLimitInput"),
