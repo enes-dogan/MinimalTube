@@ -1,4 +1,10 @@
-"""MinimalTube server - media."""
+"""MinimalTube server - one video's files in the cache folder.
+
+Next to a download (`<id>.mp4`) the cache keeps what the app shows about the video, so all of it
+works offline: thumbnails, captions, description, release date, chapters, sponsor segments and
+`<id>.meta.json` (views, length, channel). Most of it is also kept for videos that were only
+streamed or listed.
+"""
 from __future__ import annotations  # `str | None` annotations on Python 3.9
 
 import json
@@ -9,21 +15,13 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlencode
 
-from .config import (
-    CACHE_DIR,
-    CACHE_MAINTENANCE_INTERVAL_SECONDS,
-    CACHE_MAX_AGE_DAYS,
-    CACHE_MAX_BYTES,
-    DATA_DIR,
-    VIDEO_ID_RE,
-)
+from .config import CACHE_DIR, VIDEO_ID_RE
+from .jsonfile import read_json, write_json_atomic
 from .system import replace_file
-from .ytinfo import video_info, video_meta
 
 
 def remove_video_files(video_id: str) -> int:
@@ -152,15 +150,15 @@ def remember_thumbnail(video_id: str, large: bool = False):
         # one temp file per thread: the same thumbnail can be asked for twice at once
         tmp = CACHE_DIR / f"{p.name}.{threading.get_ident()}.tmp"
         tmp.write_bytes(data)
-        tmp.replace(p)
+        replace_file(tmp, p)
         return p
     except OSError as e:
         print(f"[thumb] couldn't save {p.name}: {e}")
         return None
 
 def mark_thumbnail_used(p: Path):
-    """A kept thumbnail that's shown again stays (see cleanup_unused_thumbnails); marked at most
-    once a day."""
+    """A kept thumbnail that's shown again stays (see cache.cleanup_unused_thumbnails); marked
+    at most once a day."""
     try:
         if time.time() - p.stat().st_mtime > 86400:
             p.touch()
@@ -188,33 +186,22 @@ def remember_meta(video_id: str, info):
     if not video_id or not VIDEO_ID_RE.match(video_id) or not isinstance(info, dict):
         return None
     meta = meta_from_info(info)
-    try:
-        _write_meta(video_id, meta)
-    except OSError as e:
-        print(f"[meta] couldn't save {meta_path(video_id).name}: {e}")
+    write_json_atomic(meta_path(video_id), meta, "meta")
     return meta
 
-def _write_meta(video_id: str, meta: dict):
-    # through a temp file: lookups for whole playlists read these while others write them
-    tmp = CACHE_DIR / f"{video_id}.meta.{threading.get_ident()}.tmp"
-    tmp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-    replace_file(tmp, meta_path(video_id))
-
 def cached_meta(video_id: str):
-    try:
-        data = json.loads(meta_path(video_id).read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else None
-    except (OSError, ValueError):
-        return None
+    """A video's saved meta (views, duration, channel, channel_id, handle), or None."""
+    return read_json(meta_path(video_id), {}) or None
 
-duration_failed = set()
+_unprobeable = set()
 
-def probe_duration(video_id: str):
-    """Length in seconds of a downloaded video: from the saved info, else ffprobe (once)."""
+def video_duration(video_id: str):
+    """Length in seconds of a video, as far as its files tell: from the saved meta, else (a
+    downloaded one) from ffprobe, once. None when neither knows."""
     meta = cached_meta(video_id) or {}
     if meta.get("duration"):
         return meta["duration"]
-    if video_id in duration_failed:
+    if video_id in _unprobeable or not cached_path(video_id).exists():
         return None
     dur = None
     ffprobe = shutil.which("ffprobe")
@@ -228,29 +215,11 @@ def probe_duration(video_id: str):
         except Exception:
             dur = None
     if not dur or dur <= 0:
-        duration_failed.add(video_id)
+        _unprobeable.add(video_id)
         return None
     meta["duration"] = dur
-    try:
-        _write_meta(video_id, meta)
-    except OSError:
-        pass
+    write_json_atomic(meta_path(video_id), meta, "meta")
     return dur
-
-duration_pending = set()
-
-duration_pool = ThreadPoolExecutor(max_workers=3)
-
-def _lookup_duration(video_id: str):
-    try:
-        info = video_info(video_id, keep=False)
-        remember_meta(video_id, info)
-        if not (cached_meta(video_id) or {}).get("duration"):
-            duration_failed.add(video_id)
-    except Exception:
-        duration_failed.add(video_id)
-    finally:
-        duration_pending.discard(video_id)
 
 def card_info(video_id: str) -> dict:
     """What a video card shows under its title, as far as it's saved for this video.
@@ -269,41 +238,9 @@ def card_info(video_id: str) -> dict:
             "timestamp": datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
             if date else None}
 
-card_info_failed = set()
-
-card_info_pending = set()
-
-card_info_pool = ThreadPoolExecutor(max_workers=4)
-
-def needs_card_info(video_id: str) -> bool:
-    # a download's length alone (probe_duration) isn't the card's info: no channel in it
-    return (video_id not in card_info_failed
-            and (not (cached_meta(video_id) or {}).get("channel_id")
-                 or not cached_release_date(video_id)[0]))
-
-def _oembed_author(video_id: str):
-    req = urllib.request.Request(
-        f"https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v={video_id}",
-        headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=8) as resp:
-        return json.loads(resp.read().decode("utf-8")).get("author_name")
-
-def lookup_card_info(video_id: str):
-    try:
-        info = video_meta(video_id)  # the light lookup: this runs for whole playlists
-        if not (info.get("channel") or info.get("uploader")):
-            # YouTube's player API leaves the channel's name out; its oEmbed answer has it
-            try:
-                info["channel"] = _oembed_author(video_id)
-            except (OSError, ValueError):
-                pass
-        if not (cached_meta(video_id) or {}).get("channel_id"):  # a full lookup's knows more: keep it
-            remember_meta(video_id, info)
-        remember_release_date(video_id, info)
-    except Exception:
-        card_info_failed.add(video_id)
-    finally:
-        card_info_pending.discard(video_id)
+def has_card_info(video_id: str) -> bool:
+    # a download's length alone (video_duration) isn't the card's info: no channel in it
+    return bool((cached_meta(video_id) or {}).get("channel_id")) and cached_release_date(video_id)[0]
 
 def meta_public(meta) -> dict:
     meta = meta or {}
@@ -348,13 +285,13 @@ def remember_chapters(video_id: str, info: dict):
     if not video_id or not VIDEO_ID_RE.match(video_id) or not isinstance(info, dict):
         return
     p = chapters_path(video_id)
-    if p.exists():
-        return
-    try:
-        p.write_text(json.dumps(clean_chapters(info.get("chapters"), info.get("duration")),
-                                ensure_ascii=False), encoding="utf-8")
-    except OSError as e:
-        print(f"[chapters] couldn't save {p.name}: {e}")
+    if not p.exists():
+        write_json_atomic(p, clean_chapters(info.get("chapters"), info.get("duration")), "chapters")
+
+def cached_chapters(video_id: str):
+    """The saved chapter list ([] when the video has none), or None when it was never saved."""
+    p = chapters_path(video_id)
+    return read_json(p, []) if p.exists() else None
 
 SPONSORBLOCK_API = "https://sponsor.ajay.app/api/skipSegments"
 
@@ -408,163 +345,9 @@ def remember_sponsor_segments(video_id: str, segments: list):
         video_id (str): An 11-character YouTube video id.
         segments (list[dict]): What fetch_sponsor_segments returned ([] is kept too: "none").
     """
-    try:
-        sponsor_path(video_id).write_text(json.dumps(segments), encoding="utf-8")
-    except OSError as e:
-        print(f"[sponsorblock] couldn't save {sponsor_path(video_id).name}: {e}")
+    write_json_atomic(sponsor_path(video_id), segments, "sponsorblock")
 
 def cached_sponsor_segments(video_id: str):
-    try:
-        data = json.loads(sponsor_path(video_id).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return data if isinstance(data, list) else None
-
-def cache_files():
-    return list(CACHE_DIR.glob("*.mp4"))
-
-def remove_download(f: Path):
-    """The sweep removes a download with every file kept for it, as deleting it in the app does:
-    the feed doesn't read them, and playing the video again fetches them anew."""
-    if VIDEO_ID_RE.match(f.stem):
-        remove_video_files(f.stem)
-    else:
-        f.unlink()
-
-def cleanup_old_files():
-    cutoff = time.time() - CACHE_MAX_AGE_DAYS * 86400
-    for f in cache_files():
-        try:
-            if f.stat().st_mtime < cutoff:
-                remove_download(f)
-                print(f"[cache] removed (older than {CACHE_MAX_AGE_DAYS}d): {f.name}")
-        except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
-            pass
-
-# The most space downloads may take, set in Settings and kept in DATA_DIR/settings.json; the
-# oldest downloads go first when they take more.
-CACHE_LIMIT_GB_MIN, CACHE_LIMIT_GB_MAX = 16, 1024
-
-def _settings_path() -> Path:
-    return DATA_DIR / "settings.json"
-
-def cache_limit_gb() -> int:
-    """The downloads' size cap in GB: the one set in Settings, else CACHE_MAX_BYTES."""
-    try:
-        gb = json.loads(_settings_path().read_text(encoding="utf-8")).get("cache_max_gb")
-    except (OSError, ValueError, AttributeError):
-        gb = None
-    if isinstance(gb, int) and CACHE_LIMIT_GB_MIN <= gb <= CACHE_LIMIT_GB_MAX:
-        return gb
-    return CACHE_MAX_BYTES // 1024 ** 3
-
-def downloads_bytes() -> int:
-    total = 0
-    for f in cache_files():
-        try:
-            total += f.stat().st_size
-        except OSError:
-            pass
-    return total
-
-def set_cache_limit_gb(gb: int):
-    """Save a new size cap (the caller checked it: an int in range, not below downloads_bytes())."""
-    path = _settings_path()
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        data = data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        data = {}
-    data["cache_max_gb"] = gb
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data), encoding="utf-8")
-    replace_file(tmp, path)
-
-def enforce_cache_size_limit():
-    files = sorted(cache_files(), key=lambda f: f.stat().st_mtime)
-    total = sum(f.stat().st_size for f in files)
-    limit_gb = cache_limit_gb()
-    i = 0
-    while total > limit_gb * 1024 ** 3 and i < len(files):
-        f = files[i]
-        try:
-            size = f.stat().st_size
-            remove_download(f)
-            total -= size
-            print(f"[cache] removed (size cap {limit_gb}GB): {f.name}")
-        except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
-            pass
-        i += 1
-
-def cleanup_unused_thumbnails():
-    """Thumbnails of videos that aren't downloaded go once nothing has shown them for
-    CACHE_MAX_AGE_DAYS (a download's thumbnail goes with the download)."""
-    cutoff = time.time() - CACHE_MAX_AGE_DAYS * 86400
-    removed = 0
-    for f in [*CACHE_DIR.glob("*.jpg"), *CACHE_DIR.glob("*.webp")]:
-        vid = f.name.split(".", 1)[0]  # <id>.jpg and the large <id>.hq.webp / .hq.jpg
-        try:
-            if (VIDEO_ID_RE.match(vid) and f.name in [n.format(id=vid) for n in THUMB_NAMES]
-                    and not cached_path(vid).exists() and f.stat().st_mtime < cutoff):
-                f.unlink()
-                removed += 1
-        except OSError:  # gone already, or in use (Windows won't delete it): the next sweep
-            pass
-    if removed:
-        print(f"[cache] removed {removed} thumbnails not shown for {CACHE_MAX_AGE_DAYS}d")
-
-def run_cache_maintenance():
-    cleanup_old_files()
-    enforce_cache_size_limit()
-    cleanup_unused_thumbnails()
-
-def cache_maintenance_loop():
-    while True:
-        time.sleep(CACHE_MAINTENANCE_INTERVAL_SECONDS)
-        run_cache_maintenance()
-
-YOUTUBE_HOSTS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
-
-def youtube_ids(url: str) -> tuple:
-    """The video id and the playlist id in a YouTube link.
-
-    Args:
-        url (str): A link on youtube.com (any subdomain: www., m., music.), youtu.be or
-            youtube-nocookie.com, with or without "https://"; or a bare 11-character video id.
-            Watch, /shorts/, /live/, /embed/ and /v/ links all count.
-
-    Returns:
-        tuple: (video id or None, playlist id or None). Both are None for anything that isn't
-        a YouTube link, so a caller can refuse it before yt-dlp (which opens any site) sees it.
-    """
-    url = (url or "").strip()
-    if VIDEO_ID_RE.match(url):
-        return url, None
-    try:
-        parsed = urlparse(url if "://" in url else f"https://{url}")
-    except ValueError:
-        return None, None
-    host = (parsed.hostname or "").lower()
-    if parsed.scheme not in ("http", "https") or not any(
-            host == h or host.endswith("." + h) for h in YOUTUBE_HOSTS):
-        return None, None
-    query = parse_qs(parsed.query)
-    vid = query.get("v", [None])[0]
-    if host == "youtu.be":
-        vid = parsed.path.lstrip("/").split("/")[0]
-    else:
-        m = re.match(r"/(?:shorts|live|embed|v)/([A-Za-z0-9_-]{11})", parsed.path)
-        vid = m.group(1) if m else vid
-    lst = query.get("list", [None])[0]
-    return (vid if vid and VIDEO_ID_RE.match(vid) else None,
-            lst if lst and re.fullmatch(r"[A-Za-z0-9_-]{2,64}", lst) else None)
-
-def video_id_from_url(url: str):
-    parsed = urlparse(url)
-    if (parsed.hostname or "").endswith("youtu.be"):
-        return parsed.path.lstrip("/").split("/")[0] or None
-    return parse_qs(parsed.query).get("v", [None])[0]
-
-def thumbnail_url(video_id: str) -> str:
-    # Static 16:9 thumbnail straight from YouTube's image CDN (no yt-dlp call needed).
-    return f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
+    """The saved sponsor segments, or None when none were saved."""
+    p = sponsor_path(video_id)
+    return read_json(p, []) if p.exists() else None

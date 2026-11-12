@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import socket
 import struct
 import sys
 import time
@@ -27,11 +26,15 @@ from pathlib import Path
 # with "_": never write bytecode (__pycache__) here, not even for minimaltube.system below.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from minimaltube.system import WINDOWS, cache_dir, spawn_detached, use_own_tools  # noqa: E402
-
-DEFAULT_SERVER_PORT = 7860
-# Another program may hold the preferred port: the server then takes the next free one of these.
-PORT_RANGE = 10
+from minimaltube.system import (  # noqa: E402
+    SERVER_PORT,
+    SERVER_PORTS,
+    WINDOWS,
+    cache_dir,
+    port_is_free,
+    spawn_detached,
+    use_own_tools,
+)
 
 
 def _read_message() -> dict | None:
@@ -75,23 +78,15 @@ def server_is_healthy(port: int) -> bool:
         return False
 
 
-def port_is_free(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(("127.0.0.1", port))
-            return True
-        except OSError:
-            return False
-
-
 def start_server(port: int) -> dict:
     """Start the server unless it already runs on one of its ports; the answer's "port" says
     where it is."""
-    ports = range(port, port + PORT_RANGE)
+    # another program may hold the preferred port: the server then takes the next free one
+    ports = range(port, port + SERVER_PORTS)
     running = next((p for p in ports if server_is_healthy(p)), None)
     if running is not None:
         return {"ok": True, "already_running": True, "port": running}
-    port = next((p for p in ports if port_is_free(p)), None)
+    port = next((p for p in ports if port_is_free("127.0.0.1", p)), None)
     if port is None:
         raise RuntimeError(f"ports {ports.start}-{ports.stop - 1} are all taken by other programs")
 
@@ -118,7 +113,7 @@ def run_native_host() -> int:
             return 0
         action = msg.get("action")
         if action == "start-server":
-            reply = start_server(int(msg.get("port") or DEFAULT_SERVER_PORT))
+            reply = start_server(int(msg.get("port") or SERVER_PORT))
         elif action == "ping":
             reply = {"ok": True}
         else:
@@ -140,7 +135,7 @@ def main() -> int:
         return run_native_host()
 
     parser = argparse.ArgumentParser(description="Start MinimalTube's local server.")
-    parser.add_argument("--start-server", nargs="?", const=DEFAULT_SERVER_PORT, type=int,
+    parser.add_argument("--start-server", nargs="?", const=SERVER_PORT, type=int,
                         metavar="PORT", help="Start MinimalTube's server if needed, then exit")
     args = parser.parse_args()
     if args.start_server is None:

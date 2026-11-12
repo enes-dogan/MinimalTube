@@ -7,12 +7,12 @@ import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
+from . import lookups
 from .config import (
-    CACHE_DIR,
     CHANNEL_ID_RE,
     DATA_DIR,
     FEED_KINDS,
@@ -21,17 +21,12 @@ from .config import (
     RSS_TTL,
     VIDEO_ID_RE,
 )
-from .media import cached_path, thumbnail_url
+from .jsonfile import read_json, write_json_atomic
+from .links import channel_url, thumbnail_url, watch_url
+from .media import cached_path
 from .net import internet_up, is_online
-from .ytinfo import video_meta, ydl
-from .store import (
-    ensure_original_titles,
-    original_title,
-    remember_original_title,
-    remember_original_titles,
-    read_json,
-    write_json_atomic,
-)
+from .store import original_title, remember_original_titles
+from .ytinfo import upload_timestamp, ydl
 
 # ---------------------------------------------------------------------------
 # Subscriptions + the merged "latest uploads" feed
@@ -75,10 +70,10 @@ def parse_channel_input(text: str) -> str:
         raise ValueError("Channel names may only contain letters, numbers, . _ and -")
     return f"https://www.youtube.com/@{name}"
 
-def resolve_channel(channel_url: str) -> dict:
+def resolve_channel(url: str) -> dict:
     """Ask yt-dlp who owns this channel URL (one flat request, 1 video)."""
     with ydl(skip_download=True, extract_flat="in_playlist", playlistend=1) as y:
-        info = y.extract_info(channel_url.rstrip("/") + "/videos", download=False)
+        info = y.extract_info(url.rstrip("/") + "/videos", download=False)
     first = next((e for e in (info.get("entries") or []) if isinstance(e, dict)), {})
     cid = info.get("channel_id") or first.get("channel_id")
     if not (isinstance(cid, str) and CHANNEL_ID_RE.match(cid)):
@@ -86,8 +81,7 @@ def resolve_channel(channel_url: str) -> dict:
     name = (info.get("channel") or info.get("uploader") or first.get("channel")
             or re.sub(r"\s+-\s+Videos$", "", str(info.get("title") or ""))) or cid
     handle = info.get("uploader_id") if str(info.get("uploader_id") or "").startswith("@") else None
-    return {"id": cid, "name": name, "handle": handle,
-            "url": f"https://www.youtube.com/channel/{cid}"}
+    return {"id": cid, "name": name, "handle": handle, "url": channel_url(cid)}
 
 def subscription_public(c: dict) -> dict:
     return {"id": c["id"], "name": c.get("name") or c["id"],
@@ -103,75 +97,20 @@ rss_cache = {}           # channel_id -> (fetched_at, {video id: time})
 
 rss_locks = {}
 
-# Exact upload time and length of videos the channel tabs don't date (Shorts). They are looked up
-# one by one with yt-dlp, in the background, but only when a video could actually land on the page
-# being built, and remembered on disk, so each video is looked up once. The feed answers straight
-# away without the ones still being looked up and says so (`pending`); the app asks again shortly.
-SHORT_INFO = {}          # video id -> {"ts": exact upload time or None, "dur": seconds or None}
-
-SHORT_INFO_FAILED = set()
-
-short_info_lock = threading.Lock()
-
-info_pool = ThreadPoolExecutor(max_workers=8)
-
 CHANNEL_FOLLOWERS = {}   # channel id -> subscriber count, from the latest read of its Videos tab
 
-info_pending = {}        # video id -> Future of its lookup
-
-def short_info_path() -> Path:
-    return CACHE_DIR / "video_info.json"
-
-def load_short_info():
-    SHORT_INFO.update({k: v for k, v in read_json(short_info_path(), {}).items()
-                       if VIDEO_ID_RE.match(str(k)) and isinstance(v, dict)})
-
-def save_short_info():
-    with short_info_lock:
-        write_json_atomic(short_info_path(), dict(SHORT_INFO), "feed")
-
-def lookup_video_info(video_id: str):
-    try:
-        info = video_meta(video_id)
-        ts = info.get("release_timestamp") or info.get("timestamp")
-        if not ts and info.get("upload_date"):
-            try:
-                ts = datetime.strptime(str(info["upload_date"]), "%Y%m%d").replace(
-                    tzinfo=timezone.utc).timestamp()
-            except ValueError:
-                ts = None
-        dur = info.get("duration")
-        remember_original_title(video_id, info.get("title"))
-        SHORT_INFO[video_id] = {"ts": float(ts) if ts else None,
-                                "dur": float(dur) if isinstance(dur, (int, float)) and dur > 0 else None}
-    except Exception:
-        SHORT_INFO_FAILED.add(video_id)
-
-def _lookup_in_background(video_id: str):
-    try:
-        lookup_video_info(video_id)
-    finally:
-        with short_info_lock:
-            info_pending.pop(video_id, None)
-            idle = not info_pending
-        if idle:  # saved once a batch is done
-            save_short_info()
-
-def queue_video_info(ids) -> set:
-    """Start looking these videos up (8 at a time); returns the ones still being looked up."""
-    busy = set()
-    with short_info_lock:
-        for vid in dict.fromkeys(ids):
-            if vid in SHORT_INFO or vid in SHORT_INFO_FAILED:
-                continue
-            if vid not in info_pending:
-                info_pending[vid] = info_pool.submit(_lookup_in_background, vid)
-            busy.add(vid)
-    return busy
+# Exact upload time and length of videos the channel tabs don't date (Shorts): looked up one by
+# one in the background (lookups.py), but only when a video could actually land on the page being
+# built, and each video once. The feed answers straight away without the ones still being looked
+# up and says so (`pending`); the app asks again shortly.
+def look_up_times(ids) -> set:
+    """Start looking up the upload time and length of these videos; returns the ones still
+    being looked up."""
+    return lookups.request(ids, lambda video_id: video_id not in lookups.FACTS)
 
 def exact_ts(video_id: str):
     """An exact upload time if we know one (RSS feed or a lookup), else None."""
-    return RSS_ALL.get(video_id) or (SHORT_INFO.get(video_id) or {}).get("ts")
+    return RSS_ALL.get(video_id) or lookups.fact(video_id).get("ts")
 
 # ---- Collabs: videos a subscribed channel made together with another channel ----
 # Such a video is uploaded by one of its channels only, so the others' tabs and RSS feeds never
@@ -251,7 +190,7 @@ def store_collabs(videos) -> list:
         if dirty:
             write_json_atomic(collabs_path(), keep, "feed")
     if new_ids and is_online():
-        queue_video_info(i for i in new_ids if not exact_ts(i))
+        look_up_times(i for i in new_ids if not exact_ts(i))
     return sorted(changed)
 
 def collab_label(names: list) -> str:
@@ -288,8 +227,7 @@ def ytdlp_channel_entries(channel_id: str, count: int, kind: str = "videos") -> 
     with ydl(skip_download=True, extract_flat="in_playlist", playlistend=count,
              # ask the channel tab for an approximate upload time of every video
              extractor_args={"youtubetab": {"approximate_date": [""]}}) as y:
-        info = y.extract_info(f"https://www.youtube.com/channel/{channel_id}/{kind}",
-                              download=False)
+        info = y.extract_info(f"{channel_url(channel_id)}/{kind}", download=False)
     if kind == "videos" and isinstance(info.get("channel_follower_count"), int):
         CHANNEL_FOLLOWERS[channel_id] = info["channel_follower_count"]
     out = []
@@ -301,16 +239,9 @@ def ytdlp_channel_entries(channel_id: str, count: int, kind: str = "videos") -> 
             continue
         if e.get("live_status") in ("is_upcoming",):
             continue
-        ts = e.get("timestamp") or e.get("release_timestamp")
-        if not ts and e.get("upload_date"):
-            try:
-                ts = datetime.strptime(str(e["upload_date"]), "%Y%m%d").replace(
-                    tzinfo=timezone.utc).timestamp()
-            except ValueError:
-                ts = None
         out.append({"id": vid, "title": e.get("title") or vid,
                     "duration": e.get("duration"), "views": e.get("view_count"),
-                    "timestamp": ts,
+                    "timestamp": upload_timestamp(e),
                     "members_only": e.get("availability") == "subscriber_only"})
     return out
 
@@ -504,13 +435,13 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
         # Shorts without a real date yet: look up the ones that could still land on this page
         # (their upper bound is at or above the date of the last dated video that fits)
         undated = {e["id"] for e in everything if e.get("kind") == "shorts" and not is_exact(e)
-                   and e["id"] not in SHORT_INFO_FAILED}
+                   and not lookups.gave_up(e["id"])}
         dates_desc = sorted((e["date"] for e in everything if e["id"] not in undated), reverse=True)
         threshold = dates_desc[need - 1] if len(dates_desc) >= need else None
         if is_online():
-            held |= queue_video_info(e["id"] for e in everything if e["id"] in undated
-                                     and (threshold is None or e["date"] >= threshold))
-        held -= {i for i in held if exact_ts(i) or i in SHORT_INFO_FAILED}
+            held |= look_up_times(e["id"] for e in everything if e["id"] in undated
+                                  and (threshold is None or e["date"] >= threshold))
+        held -= {i for i in held if exact_ts(i) or lookups.gave_up(i)}
         # Anything newer than the oldest video fetched from a source that still has more to
         # give is guaranteed to be in the right place; older items may be preceded by videos
         # we haven't fetched yet.
@@ -533,14 +464,17 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
     has_more = len(safe) > need or horizon is not None or offline
     pending = bool(held)
     if not offline:
-        # Shorts come without a length from yt-dlp's channel listing: look it up for the visible
-        # ones (that lookup brings their own-language title too)
-        lengths = queue_video_info([e["id"] for e in page if not e.get("duration")])
-        # the channel listing gives YouTube's translated titles: use each video's own-language one
-        titles = ensure_original_titles([e["id"] for e in page if e["id"] not in lengths])
-        # a collab's time comes from "3 days ago" until its exact one is looked up
-        dating = queue_video_info([e["id"] for e in page if e["id"] in COLLABS and not exact_ts(e["id"])])
-        pending = pending or bool(lengths) or titles > 0 or bool(dating)
+        # One lookup per visible video that lacks something: Shorts come without a length from
+        # yt-dlp's channel listing, the listing gives YouTube's translated titles (each video's
+        # own-language one is used instead), and a collab's time comes from "3 days ago" until
+        # its exact one is known
+        untimed = {e["id"] for e in page if not e.get("duration")
+                   or (e["id"] in COLLABS and not exact_ts(e["id"]))}
+        looking = lookups.request(
+            [e["id"] for e in page],
+            lambda video_id: (video_id in untimed and video_id not in lookups.FACTS)
+            or not original_title(video_id))
+        pending = pending or bool(looking)
 
     def display_channel(e):
         collab = COLLABS.get(e["id"])   # a collab names all of its channels, as YouTube does
@@ -551,9 +485,9 @@ def build_feed(offset: int, limit: int, refresh: bool, channel: str | None = Non
         "channel_id": e["channel_id"],
         # a collab's channels, each its own link in the app
         "channels": (COLLABS.get(e["id"]) or {}).get("channels"),
-        "duration": e.get("duration") or (SHORT_INFO.get(e["id"]) or {}).get("dur"),
+        "duration": e.get("duration") or lookups.fact(e["id"]).get("dur"),
         "views": e.get("views"),
-        "timestamp": e["date"], "url": f"https://www.youtube.com/watch?v={e['id']}",
+        "timestamp": e["date"], "url": watch_url(e["id"]),
         "thumbnail": thumbnail_url(e["id"]), "downloaded": cached_path(e["id"]).exists(),
         "short": e.get("kind") == "shorts",
         "members_only": bool(e.get("members_only")),
@@ -638,8 +572,7 @@ def import_subscriptions(channels) -> dict:
             have.add(cid)
             name = " ".join(str(entry.get("name") or "").split())[:100]
             saved_subscriptions.append({"id": cid, "name": name or handle or cid, "handle": handle,
-                                        "url": f"https://www.youtube.com/channel/{cid}",
-                                        "added": time.time()})
+                                        "url": channel_url(cid), "added": time.time()})
             added.append(cid)
         if added:
             write_subscriptions()
@@ -649,5 +582,4 @@ def import_subscriptions(channels) -> dict:
         _import_later(_subscribe_handle, handle)
     return {"added": len(added), "already": already, "resolving": len(handles)}
 
-load_short_info()
 load_collabs()

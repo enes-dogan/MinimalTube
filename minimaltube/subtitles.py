@@ -67,14 +67,21 @@ subtitle_backfill_attempted = set()
 
 subtitle_backfill_lock = threading.Lock()
 
+def _first_attempt(video_id: str) -> bool:
+    with subtitle_backfill_lock:
+        if video_id in subtitle_backfill_attempted:
+            return False
+        subtitle_backfill_attempted.add(video_id)
+        return True
+
 def ensure_subtitle_backfill(video_id: str, url: str):
+    """Captions for a download made before the current caption rule (or without any): fetched
+    once, in the background."""
     if sublang_current(video_id):
         return
     drop_stale_subtitle(video_id)
-    with subtitle_backfill_lock:
-        if video_id in subtitle_backfill_attempted:
-            return
-        subtitle_backfill_attempted.add(video_id)
+    if not _first_attempt(video_id):
+        return
 
     def worker():
         try:
@@ -84,3 +91,20 @@ def ensure_subtitle_backfill(video_id: str, url: str):
         fetch_original_subtitle(video_id, url, info)
 
     threading.Thread(target=worker, daemon=True).start()
+
+def ensure_stream_subtitles(video_id: str, url: str, info: dict):
+    """Captions for a video that is only streamed: fetched once, as for a download.
+
+    Args:
+        video_id (str): An 11-character YouTube video id.
+        url (str): Its watch URL.
+        info (dict): The full lookup the stream was started from (ytinfo.video_info).
+    """
+    if subtitle_path(video_id).exists() or sublang_current(video_id) or not _first_attempt(video_id):
+        return
+    threading.Thread(target=fetch_original_subtitle, args=(video_id, url, info), daemon=True).start()
+
+def forget_subtitle_attempt(video_id: str):
+    """The video was deleted: its captions are fetched again if it comes back."""
+    with subtitle_backfill_lock:
+        subtitle_backfill_attempted.discard(video_id)

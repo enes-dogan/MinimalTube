@@ -1,7 +1,7 @@
 # Python packages for server.py (ffmpeg and deno are needed too). The installer sets all of it up
-# (install.sh on Linux and macOS, install.cmd on Windows); on Windows and macOS in MinimalTube's own
-# Python, and ffmpeg / deno are fetched when the system has none.
-# Arch: sudo pacman -S python-pip python-flask python-flask-cors python-waitress ffmpeg deno
+# (install.sh on Linux and macOS, install.cmd on Windows): in MinimalTube's own Python, except on a
+# Linux system whose python3 already has Flask, Flask-CORS and pip; ffmpeg and deno are fetched
+# when the system has none.
 flask>=2.2
 flask-cors>=3.0
 # The server uses its own copy of yt-dlp, which pip installs into MinimalTube's data folder

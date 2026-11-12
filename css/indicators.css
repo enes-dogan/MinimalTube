@@ -42,10 +42,11 @@
 }
 
 /* ---- Download progress ring ---- */
-/* The same ring appears twice: over the video (#dlIndicator, which slides
-   sideways to dodge the open panel) and in the browse header
-   (#bpDlIndicator, which is just another button in that row). The badge
-   body and the SVG ring inside it are identical, so they are written once. */
+/* The same ring appears twice: over the video (#dlIndicator) and left of the
+   browse header's round buttons (#bpDlIndicator). Both slide sideways to
+   dodge the open side panel, so the panel's header buttons are never under
+   one. The badge body and the SVG ring inside it are identical, so they are
+   written once. */
 #dlIndicator,
 #bpDlIndicator {
   width: 36px;
@@ -71,17 +72,20 @@
   right: 98px;
   z-index: var(--z-float-btns);
   background: var(--glass-dim);
-  /* --dlShift is set from JS: it pushes the indicator out to the left of
-     the queue / settings panel while one of them is open. */
+  /* --dlShift is set from JS (updateDlShift in js/jobs.js): it pushes the
+     indicator out to the left of the side panel while that is open. */
   /* --dlIdle (see #playerFrame.idle) moves it to the far right while the
      queue / settings buttons are faded out. */
   transform: translateX(calc(var(--dlShift, 0px) + var(--dlIdle, 0px)));
 }
+/* Out of #browseActions' row: hidden, it would still hold a slot there, and
+   that row lies over the side panel's header (it covered "Clear queue"). */
 #bpDlIndicator {
-  position: relative;
-  flex-shrink: 0;
-  margin-right: 4px;
+  position: absolute;
+  top: 0;
+  right: calc(100% + 10px);
   background: var(--hover);
+  transform: translateX(var(--dlShift, 0px));
 }
 #dlIndicator.show,
 #bpDlIndicator.show {
@@ -104,11 +108,18 @@
 }
 #bpDlIndicator.leave {
   opacity: 0;
-  transform: translateX(28px);
+  transform: translateX(calc(var(--dlShift, 0px) + 28px));
+}
+/* No room left of the open side panel (a narrow window: the tabs are there);
+   the panel's own rows show the progress meanwhile. */
+#bpDlIndicator.crowded {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* The ring itself: a full circle track with the progress arc drawn on top.
-   js/player-ui.js animates .fg's stroke-dashoffset (dasharray 97.4 = its
+   js/jobs.js animates .fg's stroke-dashoffset (dasharray 97.4 = its
    circumference) and swaps the number for a tick when it reaches 100%. */
 #dlIndicator .ring,
 #bpDlIndicator .ring {

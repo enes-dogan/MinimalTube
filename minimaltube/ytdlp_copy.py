@@ -21,7 +21,8 @@ import urllib.request
 from pathlib import Path
 
 from .config import APP_DIR
-from .system import replace_file
+from .jsonfile import read_json, write_json_atomic
+from .system import installer_hint
 
 POINTER = APP_DIR / "yt-dlp.json"
 PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
@@ -29,11 +30,9 @@ _install_lock = threading.Lock()
 
 
 def _current_dir() -> Path | None:
-    try:
-        path = APP_DIR / json.loads(POINTER.read_text(encoding="utf-8"))["dir"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    return path if (path / "yt_dlp").is_dir() else None
+    name = read_json(POINTER, {}).get("dir")
+    path = APP_DIR / name if isinstance(name, str) and name else None
+    return path if path and (path / "yt_dlp").is_dir() else None
 
 
 def use_own_copy():
@@ -92,8 +91,7 @@ def install_latest() -> str:
             doesn't import. The message says which; the copy in use is left as it was.
     """
     if importlib.util.find_spec("pip") is None:
-        raise RuntimeError("pip isn't installed for this Python (run the installer again; "
-                           "or Arch: python-pip, Debian/Ubuntu: python3-pip)")
+        raise RuntimeError(f"pip isn't installed for this Python: run the installer again ({installer_hint()})")
     if not _install_lock.acquire(blocking=False):
         raise RuntimeError("an update is already running")
     target = APP_DIR / f"yt-dlp-{time.time_ns()}"
@@ -113,9 +111,8 @@ def install_latest() -> str:
         version = check.stdout.strip()
         if check.returncode or not version:
             raise RuntimeError(f"the new copy doesn't start: {_last_line(check.stderr) or 'no version'}")
-        tmp = POINTER.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"dir": target.name, "version": version}), encoding="utf-8")
-        replace_file(tmp, POINTER)
+        if not write_json_atomic(POINTER, {"dir": target.name, "version": version}, "yt-dlp"):
+            raise RuntimeError("couldn't note the new copy in MinimalTube's folder")
         done = True
         return version
     except (OSError, subprocess.TimeoutExpired) as e:

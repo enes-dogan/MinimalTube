@@ -30,7 +30,7 @@
             <video id="video" controls-list="nodownload" playsinline></video>
             <div id="placeholder">
               Nothing is playing yet. Pick a video from Subscriptions or
-              Downloads, or paste a YouTube link (Ctrl+V).
+              Downloads, or paste a YouTube link (<span id="pasteHint">Ctrl+V</span>).
               <button id="placeholderBrowse" class="btn btn-primary" type="button">Browse subscriptions</button>
             </div>
             <div id="loading">
@@ -393,7 +393,7 @@
       </div>
       <div class="unBar"></div>
     </div>
-    <!-- js/: the player in load order (classic scripts sharing one scope; see js/README.md) -->
+    <!-- What's left of the mini player while it's tucked away at the window's edge -->
     <button id="miniUntuck" type="button" title="Bring the player back" aria-label="Bring the player back">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 16.59 10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
     </button>
@@ -466,20 +466,32 @@
         <div class="settingsHint">Changes apply right away · Esc or a click outside closes this</div>
       </div>
     </div>
+    <!-- js/: the player in load order (classic scripts sharing one scope; see js/README.md) -->
+    <script src="js/common.js"></script>
     <script src="js/stream.js"></script>
     <script src="js/core.js"></script>
+    <script src="js/format.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/jobs.js"></script>
     <script src="js/playback.js"></script>
-    <script src="js/settings-queue.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/queue.js"></script>
+    <script src="js/watch-progress.js"></script>
+    <script src="js/undo.js"></script>
+    <script src="js/reorder.js"></script>
+    <script src="js/menus.js"></script>
     <script src="js/side-panel.js"></script>
-    <script src="js/row-menus.js"></script>
+    <script src="js/video-actions.js"></script>
     <script src="js/player-ui.js"></script>
     <script src="js/playlists.js"></script>
     <script src="js/browse.js"></script>
+    <script src="js/cards.js"></script>
     <script src="js/feed.js"></script>
     <script src="js/playlists-tab.js"></script>
     <script src="js/downloads-tab.js"></script>
     <script src="js/keyboard.js"></script>
     <script src="js/seekbar.js"></script>
     <script src="js/overlays.js"></script>
+    <script src="js/startup.js"></script>
   </body>
 </html>

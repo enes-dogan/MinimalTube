@@ -1,42 +1,19 @@
-"""MinimalTube server - store."""
-import json
+"""MinimalTube server - the JSON files: titles, the Downloads order, saved playlists."""
 import re
 import threading
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import wait as futures_wait
 from pathlib import Path
-from urllib.parse import urlparse
 
-from .config import (
-    CACHE_DIR,
-    DATA_DIR,
-    ORIGINAL_TITLES_MAX,
-    PLAYLIST_ID_RE,
-    SHORTS_LIVE_RE,
-    VIDEO_ID_RE,
+from .config import CACHE_DIR, DATA_DIR, ORIGINAL_TITLES_MAX, PLAYLIST_ID_RE, VIDEO_ID_RE
+from .jsonfile import read_json, write_json_atomic
+from .links import thumbnail_url, watch_url, youtube_ids
+from .media import (
+    cached_path,
+    card_info,
+    remember_chapters,
+    remember_description,
+    remember_meta,
+    remember_release_date,
 )
-from .media import cached_path, card_info, thumbnail_url, video_id_from_url
-from .system import replace_file
-from .ytinfo import video_meta
-
-
-def write_json_atomic(path, data, label: str):
-    """Write JSON through a temp file so a crash can never leave a half file."""
-    try:
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        replace_file(tmp, path)
-    except OSError as e:
-        print(f"[{label}] couldn't save {path.name}: {e}")
-
-
-def read_json(path, default):
-    """Parse a JSON file, falling back to `default` when it is missing or broken."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
-    return data if isinstance(data, type(default)) else default
 
 titles_lock = threading.Lock()
 
@@ -54,13 +31,34 @@ def remember_title(video_id: str, title):
         titles[video_id] = title
         write_json_atomic(titles_path(), titles, "titles")
 
+def forget_title(video_id: str):
+    with titles_lock:
+        if titles.pop(video_id, None) is None:
+            return
+        write_json_atomic(titles_path(), titles, "titles")
+
+def remember_video(video_id: str, info: dict):
+    """Keep what a full lookup of a video (ytinfo.video_info) tells about it, for later and for
+    offline: its title, description, chapters, release date and meta (views, length, channel).
+
+    Args:
+        video_id (str): An 11-character YouTube video id.
+        info (dict): yt-dlp's info of that video.
+
+    Returns:
+        tuple: (release date "YYYY-MM-DD" or None, the saved meta dict or None).
+    """
+    remember_title(video_id, info.get("title"))
+    remember_description(video_id, info.get("description") or "")  # "": checked, it has none
+    remember_chapters(video_id, info)
+    return remember_release_date(video_id, info), remember_meta(video_id, info)
+
+# ---- Original titles -------------------------------------------------------------
+# Channel listings (the feed, playlists) come back in YouTube's *translated* title when the
+# uploader added one (e.g. an English title on a Turkish video). A lookup of the video itself
+# gives the title in its own language, so those are kept in original_titles.json and used
+# instead (lookups.py fills it). Videos opened / downloaded already have theirs in titles.json.
 original_titles_lock = threading.Lock()
-
-original_title_failed = set()
-
-original_title_pending = {}
-
-original_title_pool = ThreadPoolExecutor(max_workers=6)
 
 def original_titles_path() -> Path:
     return CACHE_DIR / "original_titles.json"
@@ -79,44 +77,9 @@ def remember_original_titles(found: dict):
                 original_titles.pop(k, None)
         write_json_atomic(original_titles_path(), original_titles, "titles")
 
-def remember_original_title(video_id: str, title):
-    remember_original_titles({video_id: title})
-
 def original_title(video_id: str, listed=None):
     """The video's own-language title if known, else the one the listing gave."""
     return titles.get(video_id) or original_titles.get(video_id) or listed
-
-def _lookup_original_title(video_id: str):
-    try:
-        info = video_meta(video_id)
-        title = info.get("title")
-        if title:
-            remember_original_title(video_id, title)
-        else:
-            original_title_failed.add(video_id)
-    except Exception:
-        original_title_failed.add(video_id)
-    finally:
-        with original_titles_lock:
-            original_title_pending.pop(video_id, None)
-
-def ensure_original_titles(ids, wait: float = 0) -> int:
-    """Look up the original title of every id not known yet (in the background, 6 at a time);
-    optionally wait up to `wait` seconds. Returns how many are still being looked up."""
-    futs = []
-    with original_titles_lock:
-        for vid in dict.fromkeys(ids):
-            if (not vid or vid in titles or vid in original_titles
-                    or vid in original_title_failed):
-                continue
-            fut = original_title_pending.get(vid)
-            if fut is None:
-                fut = original_title_pending[vid] = original_title_pool.submit(
-                    _lookup_original_title, vid)
-            futs.append(fut)
-    if wait and futs:
-        futures_wait(futs, timeout=wait)
-    return sum(1 for fut in futs if not fut.done())
 
 # User-defined order of the "Downloaded" list (list of video ids).
 order_lock = threading.Lock()
@@ -131,6 +94,10 @@ def save_order(ids: list):
     with order_lock:
         library_order = list(ids)
         write_json_atomic(order_path(), library_order, "order")
+
+def drop_from_order(video_id: str):
+    if video_id in library_order:
+        save_order([i for i in library_order if i != video_id])
 
 # Named, user-saved playlists (snapshots of the queue). Stored on their own in
 # playlists.json so they never touch the remembered queue or the library order.
@@ -147,11 +114,9 @@ def write_playlists():
     """Caller must hold playlists_lock."""
     write_json_atomic(playlists_path(), saved_playlists, "playlists")
 
-def forget_title(video_id: str):
-    with titles_lock:
-        if titles.pop(video_id, None) is None:
-            return
-        write_json_atomic(titles_path(), titles, "titles")
+def find_playlist(playlist_id: str):
+    """The saved playlist with this id, or None. Caller must hold playlists_lock."""
+    return next((p for p in saved_playlists if p.get("id") == playlist_id), None)
 
 def clean_playlist_items(raw) -> tuple:
     """Validate queue items from the player -> (items, skipped_count).
@@ -166,14 +131,11 @@ def clean_playlist_items(raw) -> tuple:
         url = str(entry.get("url") or "").strip()
         vid = entry.get("id")
         if not (isinstance(vid, str) and VIDEO_ID_RE.match(vid)):
-            vid = video_id_from_url(url) if url else None
-        if not (vid and VIDEO_ID_RE.match(vid)):
-            m = SHORTS_LIVE_RE.search(urlparse(url).path) if url else None
-            vid = m.group(1) if m else None
+            vid = youtube_ids(url)[0]
         if not vid:
             skipped += 1
             continue
-        canonical = f"https://www.youtube.com/watch?v={vid}"
+        canonical = watch_url(vid)
         title = str(entry.get("title") or "").strip()
         if not title or title == url or re.match(r"^https?://", title):
             title = titles.get(vid) or canonical

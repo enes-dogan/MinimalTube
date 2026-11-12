@@ -11,7 +11,6 @@ this file; see its docstring for what each module covers.
 
 import argparse
 import shutil
-import socket
 import sys
 import threading
 import time
@@ -35,9 +34,7 @@ def check_dependencies():
     except ImportError:
         sys.exit(
             f"This Python ({sys.executable}) is missing Flask / Flask-CORS. {again}\n"
-            f"By hand: pip install -r {REQUIREMENTS}"
-            + ("\n(CachyOS/Arch: sudo pacman -S python-flask python-flask-cors python-waitress)"
-               if sys.platform.startswith("linux") else "")
+            f"By hand: {Path(sys.executable).name} -m pip install -r {REQUIREMENTS}"
         )
     try:
         import yt_dlp  # noqa: F401
@@ -53,19 +50,18 @@ def check_dependencies():
 
 def wait_for_port(host, port, seconds=20):
     """A restart on Windows starts this server before the old one has let go of the port."""
+    from minimaltube.system import port_is_free
+
     deadline = time.time() + seconds
-    while time.time() < deadline:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind((host, port))
-                return
-            except OSError:
-                time.sleep(0.25)
+    while time.time() < deadline and not port_is_free(host, port):
+        time.sleep(0.25)
 
 
 def main():
+    from minimaltube.system import SERVER_PORT
+
     parser = argparse.ArgumentParser(description="MinimalTube local server")
-    parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--port", type=int, default=SERVER_PORT)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--wait-for-port", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--update-yt-dlp", action="store_true",
@@ -97,8 +93,8 @@ def main():
         CACHE_MAX_AGE_DAYS,
         MAX_PARALLEL_DOWNLOADS,
     )
+    from minimaltube.cache import cache_limit_gb, cache_maintenance_loop, run_cache_maintenance
     from minimaltube.downloads import download_worker, resume_running_downloads
-    from minimaltube.media import cache_limit_gb, cache_maintenance_loop, run_cache_maintenance
     from minimaltube.routes import app
 
     run_cache_maintenance()

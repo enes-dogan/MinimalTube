@@ -1,125 +1,52 @@
-/* MinimalTube player - Watch progress, and the side panel's rows: queue and Downloads lists, their statuses and sizes.
+/* MinimalTube player - The side panel: its two sections (Queue, Downloads), their rows, the rows' download
+ * progress, and the Downloads list itself (`library`), which other parts of the app read too.
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
-/* ---- Watch progress (YouTube-style red bar on thumbnails) ----
- * id -> {p: seconds watched, d: video length in seconds, t: last updated,
- * s: 1 once the finish was sent to YouTube history}. */
-const WATCH_KEY = "mt_watch_v2",
-  WATCH_DONE_LEFT = 0.05,
-  RESUME_MIN_SEC = 5;
-let watchMap = {};
-try {
-  watchMap = JSON.parse(localStorage.getItem(WATCH_KEY) || "null") || {};
-} catch (err) {
-  logQuiet("watch progress (read)", err);
+/* =====================================================================
+ * Collapsible Queue / Downloads sections
+ * ===================================================================== */
+const sectionEls = {
+  queue: queueSection,
+  library: document.getElementById("librarySection"),
+};
+function setSectionCollapsed(key, collapsed, save = true) {
+  const sec = sectionEls[key];
+  const header = sec.querySelector(".plHeader");
+  sec.classList.toggle("collapsed", collapsed);
+  header.setAttribute("aria-expanded", String(!collapsed));
+  closeRowMenu();
+  if (save)
+    chrome.storage.local.set({
+      collapsedSections: Object.fromEntries(
+        Object.entries(sectionEls).map(([name, section]) => [name, section.classList.contains("collapsed")]),
+      ),
+    });
 }
-function watchFrac(id) {
-  const entry = watchMap[id];
-  return entry && entry.d > 0
-    ? Math.min(1, Math.max(0, entry.p / entry.d))
-    : 0;
-}
-function watchDone(id) {
-  const entry = watchMap[id];
-  return (
-    !!entry && entry.d > 0 && (entry.d - entry.p) / entry.d <= WATCH_DONE_LEFT
-  );
-}
-function resumePoint(id, duration) {
-  const entry = watchMap[id];
-  if (!entry || watchDone(id) || !(duration > 0)) return 0;
-  return entry.p >= RESUME_MIN_SEC && entry.p < duration - RESUME_MIN_SEC
-    ? entry.p
-    : 0;
-}
-function saveWatchMap() {
-  try {
-    const ids = Object.keys(watchMap);
-    if (ids.length > 4000) {
-      ids
-        .sort((a, b) => watchMap[a].t - watchMap[b].t)
-        .slice(0, ids.length - 3000)
-        .forEach((id) => delete watchMap[id]);
-    }
-    localStorage.setItem(WATCH_KEY, JSON.stringify(watchMap));
-  } catch (err) {
-    logQuiet("watch progress (save)", err);
-  }
-}
-function paintWatch(thumb) {
-  const id = thumb.dataset.vid,
-    frac = watchFrac(id);
-  let bar = thumb.querySelector(":scope > .watchBar");
-  if (!(frac > 0)) {
-    if (bar) bar.remove();
-    return;
-  }
-  if (!bar) {
-    bar = document.createElement("div");
-    bar.className = "watchBar";
-    bar.appendChild(document.createElement("i"));
-    thumb.appendChild(bar);
-  }
-  const done = watchDone(id);
-  bar.firstChild.style.width = `${done ? 100 : Math.max(3, frac * 100)}%`;
-  bar.classList.toggle("done", done);
-}
-function refreshWatchBars() {
-  document
-    .querySelectorAll(".vThumb[data-vid], .plThumb[data-vid]")
-    .forEach(paintWatch);
-}
-function recordWatch(id, position, duration) {
-  if (!id || !(duration > 0) || !(position >= 0)) return;
-  position = Math.min(duration, position);
-  const prev = watchMap[id];
-  if (prev && prev.d > 0 && Math.abs(prev.p - position) < 1) return;
-  const entry = {
-    p: Math.round(position * 10) / 10,
-    d: Math.round(duration * 10) / 10,
-    t: Date.now(),
-  };
-  if (prev && prev.s && position / duration >= 0.5) entry.s = 1;
-  watchMap[id] = entry;
-  if (!entry.s && watchDone(id)) {
-    entry.s = 1;
-    if (ytHistorySync) sendToYouTubeHistory(id);
-  }
-  saveWatchMap();
-  refreshWatchBars();
-}
-// Offline it's simply sent later (the OFFLINE badge already says so); anything else, like not
-// being signed in to YouTube in this browser, is worth knowing.
-function sendToYouTubeHistory(id) {
-  chrome.runtime.sendMessage({ type: "minimaltube-mark-watched", id }, (res) => {
-    if (chrome.runtime.lastError) return logQuiet("YouTube history", chrome.runtime.lastError);
-    if (res && res.error && !isOffline())
-      notify(`Couldn't add this video to your YouTube history: ${res.error}`, true, 6000);
+Object.entries(sectionEls).forEach(([key, sec]) => {
+  const header = sec.querySelector(".plHeader");
+  header.tabIndex = 0;
+  header.setAttribute("role", "button");
+  header.setAttribute("aria-expanded", "true");
+  const toggle = () =>
+    setSectionCollapsed(key, !sec.classList.contains("collapsed"));
+  header.addEventListener("click", (event) => {
+    if (event.target.closest("button")) return; // e.g. "Download all"
+    toggle();
   });
-}
-function noteWatchProgress() {
-  if (!currentVideoId || !(video.duration > 0) || !isFinite(video.duration))
-    return;
-  const streaming = liveStream && liveStream.videoId === currentVideoId;
-  if (!streaming && !(video.currentSrc || "").includes(`/stream/${currentVideoId}`))
-    return; // still showing a previous video
-  if (video.currentTime < 1 && !video.ended) return;
-  recordWatch(
-    currentVideoId,
-    video.ended ? video.duration : video.currentTime,
-    video.duration,
-  );
-}
-let lastWatchNote = 0;
-video.addEventListener("timeupdate", () => {
-  const now = Date.now();
-  if (now - lastWatchNote < 4000) return;
-  lastWatchNote = now;
-  noteWatchProgress();
+  header.addEventListener("keydown", (event) => {
+    if (event.target !== header) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      toggle();
+    }
+  });
 });
-video.addEventListener("pause", () => noteWatchProgress());
-video.addEventListener("ended", () => noteWatchProgress());
-window.addEventListener("pagehide", () => noteWatchProgress());
+chrome.storage.local.get(["collapsedSections"], (stored) =>
+  whenLoaded(() => {
+    const collapsed = stored.collapsedSections || {};
+    Object.keys(sectionEls).forEach((name) => collapsed[name] && setSectionCollapsed(name, true, false));
+  }),
+);
 
 // Video lengths for the side panel rows: from the item itself, else asked from the server
 // (it knows the length of anything prepared / downloaded before).
@@ -157,24 +84,20 @@ function wantDurations(items) {
       if (found) {
         // refresh the labels in place (no re-render, so open menus / drags are left alone)
         document.querySelectorAll(".plItem").forEach((row) => {
-          const it = row._item || row._entry,
-            el = row.querySelector(".plDur");
-          if (it && el && !el.textContent) paintDur(el, rowDuration(it));
+          const shown = row._item || row._entry,
+            durEl = row.querySelector(".plDur");
+          if (shown && durEl && !durEl.textContent) paintDur(durEl, rowDuration(shown));
         });
       }
     })
     .catch((err) => logQuiet("durations", err));
 }
-function paintDur(el, sec) {
-  el.textContent = sec > 0 ? fmtDur(sec) : "";
+function paintDur(durEl, sec) {
+  durEl.textContent = sec > 0 ? fmtDur(sec) : "";
 }
 function makePlBadges(item) {
-  const box = document.createElement("div");
-  box.className = "plBadges";
-  const dur = document.createElement("div");
-  dur.className = "plDur";
-  paintDur(dur, rowDuration(item));
-  box.appendChild(dur);
+  const box = el("div", "plBadges");
+  paintDur(box.appendChild(el("div", "plDur")), rowDuration(item));
   return box;
 }
 function makeRow({ videoId, index, badges, title, pending, sub, active, className, menu, onClick }) {
@@ -186,7 +109,7 @@ function makeRow({ videoId, index, badges, title, pending, sub, active, classNam
   const text = el("div", "plText");
   text.appendChild(titleEl);
   if (sub != null) text.appendChild(el("div", "plSub", sub));
-  row.append(thumb, text, makeKebab(menu, row), makeGrip());
+  row.append(thumb, text, menuButton(rowMenu, "plMenuBtn", menu, () => row), makeGrip());
   row.addEventListener("click", onClick);
   return row;
 }
@@ -199,28 +122,29 @@ function makePlThumb(id) {
   }
   return thumb;
 }
+function makeGrip() {
+  const grip = el("div", "plGrip");
+  grip.title = "Drag to reorder";
+  grip.innerHTML = ICON_GRIP;
+  // The click that follows a drag/press on the grip must not play the row.
+  grip.addEventListener("click", (event) => event.stopPropagation());
+  return grip;
+}
 function renderQueue() {
   // something new in the queue makes "Queue cleared" final (an Undo would have to mix the two)
-  if (queue && queue.items.length && pendingUndo && pendingUndo.kind === "queue-clear") flushUndo();
+  if (queueHasItems() && pendingUndo && pendingUndo.kind === "queue-clear") flushUndo();
   updateSkipButtons();
-  const linked =
-    queue && queue.playlistId
-      ? savedPlaylists.find((playlist) => playlist.id === queue.playlistId)
-      : null;
+  const linked = queue && queue.playlistId ? savedPlaylists.find((playlist) => playlist.id === queue.playlistId) : null;
   queuePlName.textContent = linked ? linked.name : "";
   queuePlName.title = linked ? `Playing the playlist "${linked.name}"` : "";
-  document.getElementById("queueEmpty").hidden = !!(queue && queue.items.length);
-  if (!queue || !queue.items.length)
-    return (
-      (queueSection.style.display = "none"),
-      void (queueList.innerHTML = "")
-    );
-  queueSection.style.display = "flex";
+  document.getElementById("queueEmpty").hidden = queueHasItems();
   closeRowMenu();
   queueList.innerHTML = "";
+  queueSection.style.display = queueHasItems() ? "flex" : "none";
+  if (!queueHasItems()) return;
   queue.items.forEach((item, idx) => {
     const status = el("div", "plStatus");
-    paintStatus(status, item._st);
+    paintStatus(status, videoJob(itemVideoId(item)));
     const badges = makePlBadges(item);
     badges.appendChild(status); // the tick / percent sits right of the length
     const row = makeRow({
@@ -229,82 +153,57 @@ function renderQueue() {
       badges,
       title: item.title,
       active: idx === queueIndex,
-      menu: (btn) => queueMenuEntries(item, btn),
-      onClick: () => {
-        playSource = "queue";
-        queueIndex = idx;
-        markActiveQueueRow();
-        playVideo(item.url);
-        prefetchNextInQueue();
-        saveQueue();
-      },
+      menu: () => queueMenuEntries(item),
+      onClick: () => playQueueItem(idx),
     });
     row._item = item;
+    row._status = status;
     queueList.appendChild(row);
   });
   wantDurations(queue.items);
-  pollQueueStatuses();
 }
-function paintStatus(el, job) {
-  el.classList.remove("ready", "downloading");
-  if (job) {
-    if (job.status === "ready") {
-      el.textContent = "✓";
-      el.classList.add("ready");
-    } else if (job.status === "downloading") {
-      el.textContent = `${Math.round(job.percent ?? 0)}%`;
-      el.classList.add("downloading");
-    } else if (job.status === "merging") {
-      el.textContent = "⏳";
-      el.classList.add("downloading");
-    } else if (job.status === "queued") el.textContent = "…";
-    else if (job.status === "waiting") el.textContent = "⏸";
-    else el.textContent = "";
-  } else el.textContent = "";
+// A row's download state: ✓ downloaded, a percentage, ⏳ merging, … queued, ⏸ waiting for the
+// connection, nothing otherwise.
+function paintStatus(statusEl, job) {
+  const status = job ? job.status : null,
+    text =
+      status === "downloading"
+        ? `${Math.round(job.percent ?? 0)}%`
+        : { ready: "✓", merging: "⏳", queued: "…", waiting: "⏸" }[status] || "",
+    look = status === "ready" ? "ready" : status === "downloading" || status === "merging" ? "downloading" : "";
+  if (statusEl._shown === text + look) return; // most rows are the same at every tick
+  statusEl._shown = text + look;
+  statusEl.textContent = text;
+  statusEl.classList.toggle("ready", look === "ready");
+  statusEl.classList.toggle("downloading", look === "downloading");
 }
-// Status is keyed by the queue item itself (not its index) so it stays correct
-// while the list is being reordered.
-function setQueueItemStatus(item, job) {
-  item._st = job || null;
-  const row = Array.from(queueList.children).find(
-    (candidate) => candidate._item === item,
-  );
-  const el = row && row.querySelector(".plStatus");
-  if (el) paintStatus(el, item._st);
+const queueRowOf = (item) => Array.from(queueList.children).find((row) => row._item === item);
+// The rows' ticks and percentages follow the server's state (jobs.js) and the Downloads list.
+function paintQueueStatuses() {
+  for (const row of queueList.children)
+    if (row._status) paintStatus(row._status, videoJob(itemVideoId(row._item)));
 }
-// All the queue's videos in one request (/statuses), not one each.
-const STATUSES_CHUNK = 150;
-async function pollQueueStatuses() {
-  const snapshot = queue;
-  if (!snapshot) return;
-  const asking = [];
-  snapshot.items.forEach((item) => {
-    if (item._cachedReady) setQueueItemStatus(item, { status: "ready" });
-    else if (itemVideoId(item)) asking.push(item);
-  });
-  const ids = [...new Set(asking.map(itemVideoId))];
-  const states = {};
-  try {
-    for (let i = 0; i < ids.length; i += STATUSES_CHUNK) {
-      const chunk = ids.slice(i, i + STATUSES_CHUNK).join(",");
-      Object.assign(states, (await api(`/statuses?ids=${chunk}`)).statuses);
-    }
-  } catch (err) {
-    return logQuiet("queue statuses", err);
-  }
-  if (snapshot !== queue) return;
-  asking.forEach((item) => {
-    const videoId = itemVideoId(item);
-    const job = hiddenDeletes.has(videoId) ? null : states[videoId] || null;
-    if (job && job.status === "ready") item._cachedReady = true;
-    setQueueItemStatus(item, job);
-  });
+function updateSkipButtons() {
+  const inQueue =
+    playSource === "queue" && queue && queueIndex >= 0 && currentVideoId;
+  prevBtn.style.display = inQueue && queueIndex > 0 ? "" : "none";
+  nextBtn.style.display =
+    (inQueue && queueIndex < queue.items.length - 1) || (playSource === "detour" && resolveNext())
+      ? ""
+      : "none";
 }
-downloadAllBtn.addEventListener("click", queueEveryDownload);
-let queuePollTimer = null;
-function startQueuePolling() {
-  clearInterval(queuePollTimer);
-  queuePollTimer = setInterval(pollQueueStatuses, 5e3);
+function markActiveQueueRow() {
+  updateSkipButtons();
+  queueList.querySelectorAll(".plItem").forEach((row, index) => row.classList.toggle("active", index === queueIndex));
+}
+function scrollActiveQueueRowIntoView() {
+  const row = queueList.children[queueIndex];
+  if (!row) return;
+  const list = queueList.getBoundingClientRect(),
+    rect = row.getBoundingClientRect();
+  if (rect.top < list.top) queueList.scrollTop += rect.top - list.top;
+  else if (rect.bottom > list.bottom)
+    queueList.scrollTop += rect.bottom - list.bottom;
 }
 function closeQueuePanel() {
   closeSaveToMenu();
@@ -325,9 +224,25 @@ addLayer({
   close: closeQueuePanel,
   inside: [queueToggleBtn, "#bpQueueBtn", "#savePlModal"],
 });
+/* ---- The Downloads list ----
+ * `library` is the server's list (GET /library): every downloaded video, and the ones on their
+ * way. It is loaded again whenever the server's revision of it (jobs.js: serverLibraryRev)
+ * differs from the one this copy was made from. */
 let library = [],
-  libraryKey = null;
-let libEpoch = 0;
+  libraryKey = null, // what the drawn list was made from (null: nothing loaded yet)
+  libraryRev = null, // the server's revision of the loaded list
+  libraryLoading = false,
+  libEpoch = 0, // bumped when the list is changed here: an answer already on its way is dropped
+  downloadedIds = new Set(); // the ids in `library` that are fully downloaded
+const isDownloadedId = (id) => downloadedIds.has(id);
+function setLibrary(items) {
+  libEpoch++;
+  library = items;
+  libraryKey = libKey(items);
+  downloadedIds = new Set(items.filter((entry) => !isActiveEntry(entry)).map((entry) => entry.id));
+  renderLibrary();
+  paintQueueStatuses();
+}
 function libKey(list) {
   return list
     .map(
@@ -336,80 +251,61 @@ function libKey(list) {
     )
     .join("\n");
 }
-const isActiveEntry = (response) =>
-  !!response.status && response.status !== "ready";
+const isActiveEntry = (entry) => !!entry.status && entry.status !== "ready";
 const activeEntryText = (entry) =>
   entry.status === "queued"
     ? "Waiting to download"
     : entry.status === "waiting"
       ? "Waiting for internet connection"
       : "Downloading…";
-
-// Titles the player already knows, so the server can name queued downloads right away.
-function titlesFor(items) {
-  const out = {};
-  items.forEach((item) => {
-    const id = itemVideoId(item);
-    if (id && item.title && !/^https?:\/\//i.test(item.title))
-      out[id] = item.title;
-  });
-  return out;
-}
-
-// Called every second with /downloads: keeps progress live and notices downloads that
-// started (or finished) since the Downloads list was last fetched.
+// After every answer of the state loop: progress stays live in the Downloads rows and cards, and
+// a download that started (or went away) since the list was loaded loads the list again.
 let lastLibSync = 0;
-function syncLibraryDownloads(items) {
-  const active = new Map(items.map((item) => [item.id, item]));
-  const known = new Set(library.map((item) => item.id));
-  let stale = items.some((item) => !known.has(item.id));
+function syncLibraryDownloads() {
+  const known = new Set(library.map((entry) => entry.id));
+  let stale = [...activeDownloads.keys()].some((id) => !known.has(id));
   libraryList.querySelectorAll(".libItem").forEach((row) => {
-    const response = row._entry;
-    if (!response || !isActiveEntry(response)) return;
-    const live = active.get(response.id);
-    if (!live) {
-      stale = true;
-      return;
-    } // finished (or was cancelled): redraw the row
-    response.status = live.status;
-    response.percent = live.percent;
-    const el = row.querySelector(".plStatus");
-    if (el) paintStatus(el, response);
+    const entry = row._entry;
+    if (!entry || !isActiveEntry(entry)) return;
+    const live = activeDownloads.get(entry.id);
+    if (!live) return void (stale = true); // finished (or was cancelled): the row is redrawn
+    entry.status = live.status;
+    entry.percent = live.percent;
+    const statusEl = row.querySelector(".plStatus");
+    if (statusEl) paintStatus(statusEl, entry);
   });
-  try {
-    refreshDownloadBadges();
-  } catch (err) {
-    logQuiet("download badges", err);
-  }
+  refreshDownloadBadges();
   if (stale && Date.now() - lastLibSync > 1500) {
     lastLibSync = Date.now();
     refreshLibrary();
   }
 }
+whenStateChanges(() => {
+  if (queuePanel.classList.contains("open") || document.body.classList.contains("browsing")) syncLibraryDownloads();
+  if (serverLibraryRev !== libraryRev) refreshLibrary(); // a download finished, a file is gone
+  paintQueueStatuses();
+});
 async function refreshLibrary() {
-  if (sortDragging || rowMenu.classList.contains("open")) return;
+  if (libraryLoading || sortDragging || menuIsOpen(rowMenu)) return;
   const epoch = libEpoch;
+  libraryLoading = true;
   try {
-    const response = await fetch(`${serverBase}/library`);
-    if (!response.ok) return;
-    const data = await response.json(),
-      items = (Array.isArray(data.items) ? data.items : []).filter(
-        (item) => !hiddenDeletes.has(item.id),
-      ),
-      key = libKey(items);
-    if (
-      epoch !== libEpoch ||
-      sortDragging ||
-      rowMenu.classList.contains("open")
-    )
-      return;
-    if (key === libraryKey) return;
-    libraryKey = key;
-    library = items;
-    renderLibrary();
+    const data = await api("/library"),
+      items = (Array.isArray(data.items) ? data.items : []).filter((item) => !hiddenDeletes.has(item.id));
+    // changed here meanwhile, or in use: this answer is dropped, the next state answer asks again
+    if (epoch !== libEpoch || sortDragging || menuIsOpen(rowMenu)) return;
+    libraryRev = data.rev ?? null;
+    if (libKey(items) !== libraryKey) setLibrary(items);
   } catch (err) {
     logQuiet("Downloads list", err);
+  } finally {
+    libraryLoading = false;
   }
+}
+// The list from scratch, whatever this copy holds (after something was deleted on the server).
+function reloadLibrary() {
+  libraryKey = null;
+  refreshLibrary();
 }
 function renderLibrary() {
   renderLibraryPanel();
@@ -428,30 +324,24 @@ function renderLibraryPanel() {
   closeRowMenu();
   libraryCount.textContent = library.length ? String(library.length) : "";
   libraryList.innerHTML = "";
-  if (!library.length) {
-    const el = document.createElement("div");
-    el.className = "libEmpty";
-    el.textContent = "No downloads yet.";
-    libraryList.appendChild(el);
-    return;
-  }
-  library.forEach((entry, item) => {
+  if (!library.length) return void libraryList.appendChild(el("div", "libEmpty", "No downloads yet."));
+  library.forEach((entry, index) => {
     const badges = makePlBadges(entry);
     if (isActiveEntry(entry)) {
-      const prog = el("div", "plStatus");
-      paintStatus(prog, entry);
-      badges.appendChild(prog);
+      const progress = el("div", "plStatus");
+      paintStatus(progress, entry);
+      badges.appendChild(progress);
     }
     const row = makeRow({
       videoId: entry.id,
-      index: String(item + 1),
+      index: String(index + 1),
       badges,
       title: entry.title || `${entry.id} (looking up title…)`,
       pending: !entry.title,
       sub: isActiveEntry(entry) ? activeEntryText(entry) : fmtSize(entry.size),
       active: entry.id === currentVideoId,
       className: "libItem",
-      menu: (btn) => libraryMenuEntries(entry, btn),
+      menu: () => libraryMenuEntries(entry),
       onClick: () => playLibraryEntry(entry),
     });
     row.dataset.vid = entry.id;
@@ -461,15 +351,17 @@ function renderLibraryPanel() {
 }
 function markActiveLibraryRow() {
   updateSkipButtons();
-  libraryList.querySelectorAll(".libItem").forEach((el) => {
-    el.classList.toggle("active", el.dataset.vid === currentVideoId);
-  });
+  libraryList.querySelectorAll(".libItem").forEach((row) => row.classList.toggle("active", row.dataset.vid === currentVideoId));
 }
-function playLibraryEntry(entry) {
-  playSource = "library";
-  queueIndex = libraryIndexOfId(entry.id);
-  markActiveQueueRow();
-  prefetchNextInQueue();
-  playVideo(entry.url || `https://www.youtube.com/watch?v=${entry.id}`);
-  saveQueue();
+function moveLibraryItem(from, to) {
+  const [moved] = library.splice(from, 1);
+  library.splice(to, 0, moved);
+  libEpoch++;
+  libraryKey = libKey(library);
+  renderLibrary();
+  api("/library/order", { method: "POST", body: { ids: library.map((entry) => entry.id) } }).catch(
+    (err) => notify(`Couldn't save the new order: ${netMessage(firstLine(err.message))}`, true, 3000),
+  );
 }
+makeSortable(queueList, { item: ".plItem", handle: ".plGrip", onMove: moveQueueItem });
+makeSortable(libraryList, { item: ".plItem", handle: ".plGrip", onMove: moveLibraryItem });

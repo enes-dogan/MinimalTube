@@ -1,5 +1,5 @@
 // Toolbar popup: paste a URL to add it to the queue, or just open the player.
-const DEFAULT_SERVER = "http://127.0.0.1:7860";
+// (js/common.js, loaded before this file, has DEFAULT_SERVER and INSTALLER.)
 
 const urlInput = document.getElementById("url");
 const addBtn = document.getElementById("play");
@@ -30,7 +30,7 @@ async function addToQueue() {
   if (!res || !res.ok) {
     warning.textContent =
       res?.error ||
-      `MinimalTube server isn't running at ${res?.serverBase || DEFAULT_SERVER} and couldn't be started. Run MinimalTube's installer again (${/Windows/.test(navigator.userAgent) ? "install.cmd" : /Mac OS X|Macintosh/.test(navigator.userAgent) ? "install.command" : "./install.sh"}).`;
+      `MinimalTube server isn't running at ${res?.serverBase || DEFAULT_SERVER} and couldn't be started. Run MinimalTube's installer again (${INSTALLER}).`;
     warning.style.display = "block";
     return;
   }

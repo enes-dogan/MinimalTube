@@ -8,7 +8,7 @@ the app with waitress (16 threads, so streams and polls don't wait for each othe
 Without waitress it falls back to Flask's built-in server. Deno isn't checked:
 yt-dlp finds it on the `PATH` by itself. `POST /restart` (Settings → Restart server)
 runs it again in the same process, and the downloads that were running continue.
-`server.py --update-yt-dlp` (run by `install.sh`) and `POST /ytdlp/update` (Settings →
+`server.py --update-yt-dlp` (run by the installer) and `POST /ytdlp/update` (Settings →
 Update yt-dlp, which then restarts) install the newest yt-dlp as that own copy.
 `/health` answers `"app": "minimaltube"`: that's how the extension and the native host tell this
 server from another program's. The host starts it on port 7860, or on the next free one up to
@@ -19,32 +19,61 @@ Imports only go down this list, so there are no cycles:
 
 | Module | Imports from the package |
 |---|---|
-| `config`, `net`, `sublang`, `live` | nothing |
-| `ytinfo`, `ytdlp_copy` | config |
-| `media` | config, ytinfo |
-| `store` | config, media, ytinfo |
-| `subtitles` | config, media, sublang, ytinfo |
-| `feed` | config, media, net, store, ytinfo |
-| `downloads` | config, media, net, store, subtitles, ytinfo |
-| `routes` | all of the above except sublang |
+| `system` | nothing |
+| `config`, `jsonfile` | system |
+| `net`, `sublang`, `live` | nothing |
+| `links` | config |
+| `ytinfo` | links |
+| `ytdlp_copy` | config, jsonfile, system |
+| `media` | config, jsonfile, system |
+| `cache` | config, jsonfile, media |
+| `store` | config, jsonfile, links, media |
+| `lookups` | config, jsonfile, links, media, store, ytinfo |
+| `subtitles` | config, media, sublang, system, ytinfo |
+| `feed` | config, jsonfile, links, lookups, media, net, store, ytinfo |
+| `downloads` | cache, config, jsonfile, links, media, net, store, subtitles, ytinfo |
+| `web` | config, ytinfo |
+| `routes_*` | web and the modules above |
+| `routes` | the five `routes_*` modules, config, net, web |
 
 | Module | What it owns |
 |---|---|
-| `system.py` | What differs per OS, with no side effects (the native host and `install.py` use it too): the cache / data / app folders on Linux, macOS and Windows, `use_own_tools()` (MinimalTube's own ffmpeg, ffprobe and deno first on PATH), `spawn_detached()` (starting the server so it outlives its starter; on Windows with a console that never shows), `replace_file()` (`os.replace` that rides out Windows' file locks) and `open_folder()`. |
-| `config.py` | `CACHE_DIR`, `DATA_DIR` (what the user made, kept apart from the cache), `APP_DIR` (MinimalTube's own Python, yt-dlp and tools), the cache limits, the yt-dlp format selector, the extension's origin, and the id/regex constants everything shares. |
-| `ytinfo.py` | The one place that runs yt-dlp: `ydl(**opts)` (quiet defaults), `video_info()` (a full lookup of one video, kept for a few minutes; simultaneous requests for the same video share one lookup) and `video_meta()` (title, upload time and length only, from YouTube's player API: about 0.2 s, for the feed's bulk lookups). |
-| `ytdlp_copy.py` | MinimalTube's own yt-dlp: pip installs every version into a folder of its own in the app folder (`--target`, no sudo) and `yt-dlp.json` names the one to use, so an update never touches the running copy; `use_own_copy()` puts it on `sys.path` at start, before anything imports yt-dlp. |
+| `system.py` | What differs per OS, with no side effects (the native host and `install.py` use it too): the cache / data / app folders on Linux, macOS and Windows, the server's ports, `extension_id()` (from `manifest.json`'s key), `use_own_tools()` (MinimalTube's own ffmpeg, ffprobe and deno first on PATH), `spawn_detached()`, `run_again()` (restart in place), `replace_file()` (`os.replace` that rides out Windows' file locks), `port_is_free()`, `open_folder()`, `installer_hint()`. |
+| `config.py` | `CACHE_DIR`, `DATA_DIR` (what the user made, kept apart from the cache), `APP_DIR` (MinimalTube's own Python, yt-dlp and tools), the cache limits, the yt-dlp format selector, the extension's origin, and the id regexes everything shares. |
+| `jsonfile.py` | `read_json` (tolerant) and `write_json_atomic` (temp file, then rename): the one reader and writer of every JSON file. |
+| `links.py` | `youtube_ids()`: the one reader of YouTube links (nothing else may reach yt-dlp), and the writers `watch_url`, `channel_url`, `thumbnail_url`. |
+| `ytinfo.py` | The one place that runs yt-dlp lookups: `ydl(**opts)` (quiet defaults), `video_info()` (a full lookup of one video, kept for a few minutes; simultaneous requests for the same video share one lookup), `video_meta()` (the light one: YouTube's player API, about 0.2 s) and `upload_timestamp()`. |
+| `ytdlp_copy.py` | MinimalTube's own yt-dlp: pip installs every version into a folder of its own in the app folder (`--target`, no sudo) and `yt-dlp.json` names the one to use, so an update never touches the running copy. |
 | `net.py` | The app-wide connection state: `internet_up()` (a cached probe of YouTube), `is_online()`, `on_online()` callbacks; a watcher re-checks while offline. Every response carries it as `X-MinimalTube-Net`. |
-| `store.py` | The JSON files: `titles.json`, `original_titles.json` (cache dir), `order.json`, `playlists.json` (data dir). `write_json_atomic` is the single temp-file-then-rename writer and `read_json` the single tolerant reader they all use. |
-| `media.py` | One video's files: the mp4, thumbnail, description, release date, chapters, meta, SponsorBlock segments, plus duration probing and the cache-expiry sweep. `card_info()` is what a video card shows under its title (channel, views, upload day); `/info` looks up the videos that have none saved. `/thumb/<id>` serves the 320 x 180 thumbnail, `/thumb/<id>?size=720` the 1280 x 720 one (WebP when YouTube has it, else JPEG) that cards pick through `srcset`. |
+| `media.py` | One video's files in the cache folder: the mp4, thumbnails (320 x 180 and 1280 x 720), description, release date, chapters, `<id>.meta.json`, SponsorBlock segments; `video_duration()`, `card_info()`. |
+| `cache.py` | Keeping the cache folder in bounds: the age sweep, the size cap (set in Settings, `settings.json`), unused thumbnails, the maintenance loop. |
+| `store.py` | The user's JSON files: `titles.json`, `original_titles.json` (cache dir), `order.json`, `playlists.json` (data dir); `remember_video()` keeps what a full lookup tells. |
+| `lookups.py` | Background lookups of videos nobody opened yet: one pool and one light request per video answers the feed (a Short's time and length, own-language titles), a playlist's cards (channel, views, upload day) and the queue's lengths. `request(ids, missing)` starts them and says which are still running. |
 | `sublang.py` | The caption rule, as pure functions: Turkish videos get Turkish (uploader's, then auto) then English (uploader's); English videos get English (uploader's, then auto); other languages get none. Never a machine translation. |
 | `subtitles.py` | Fetching the captions `sublang.py` picks, and re-checking older downloads when the rule changes (`SUBLANG_RULE`). |
-| `downloads.py` | The job table, the yt-dlp worker threads, cancellation, and the Downloads listing. |
-| `feed.py` | Subscriptions (`subscriptions.json`) and the merged "latest uploads" feed (one channel or all), including the RSS/Shorts date reconciliation. It answers straight away: Shorts still being dated are left out and lengths / own-language titles still being looked up are filled in later, in the background, and the response says `pending` so the app asks again a moment later. RSS titles count as own-language titles (no lookup needed). Looked-up dates and lengths are kept in `video_info.json`. A channel's subscriber count comes with its feed (`subscribers`); `import_subscriptions()` (`/subscriptions/import`) adds many channels at once and reads them in the background. Collabs (a video made with a subscribed channel but uploaded by another one, which only the uploader's tabs list): `store_collabs()` (`/feed/collabs`) keeps the ones the extension read from the signed-in YouTube subscriptions feed (`collabs.json`), and the feed adds them to every subscribed collaborator's uploads, labelled "A and B". |
+| `downloads.py` | The job table and everything done to it (`start_download`, `queue_download`, `forget_download`, `job_status`, `active_jobs`), the yt-dlp worker threads, and the Downloads list with its revision (`library_rev`). Routes never touch `jobs` themselves. |
+| `feed.py` | Subscriptions (`subscriptions.json`) and the merged "latest uploads" feed (one channel or all), including the RSS/Shorts date reconciliation. It answers straight away and says `pending` while lookups run, so the app asks again a moment later. Collabs (`collabs.json`): `store_collabs()` keeps the ones the extension read from the signed-in YouTube feed. |
 | `live.py` | Streaming (while downloading, or Stream only): picks the adaptive formats yt-dlp extracted in `/prepare`, parses each one's segment index (MP4 `sidx` / WebM `Cues`) and proxies byte ranges with yt-dlp's URL and headers. Idle unless the player streams. |
-| `routes.py` | The Flask app and all endpoints. Handlers stay thin and call into the modules above. From a browser, only the extension's own origin is answered (CORS plus an Origin check); curl and other tools still work. Routes take video ids as `<vid:video_id>` (only an 11-character id matches), and `/prepare` / `/playlist` accept only YouTube links (`media.youtube_ids`). |
+| `web.py` | What the route modules share: `ApiError` (raise it anywhere under a route: it becomes `{"error": ...}` with its status), the URL converters `<vid:…>`, `<pl:…>`, `<chan:…>` (only valid ids match), `json_body()`, `ids_param()`, `id_list()`, `full_info()`. |
+| `routes.py` | The Flask app: CORS and the Origin check (only the extension's origin is answered from a browser; curl still works), the error handler, the connection header, and the five blueprints. |
+| `routes_playback.py` | `/prepare`, `/live/…`, `/stream`, `/thumb`, `/subtitles`, `/description`, `/chapters`, `/sponsorblock`, `/channel-of`. |
+| `routes_library.py` | `/state`, `/queue`, `/library`, `/library/order`, `/durations`, `/info`, `DELETE /video`. |
+| `routes_playlists.py` | `/playlists` and everything under it. |
+| `routes_feed.py` | `/subscriptions…`, `/feed`, `/feed/collabs`, `/playlist` (reading a YouTube playlist). |
+| `routes_system.py` | `/health`, `/net`, `/cache-limit`, `/open-folder`, `/restart`, `/ytdlp/update`. |
 
 ## Conventions
+
+**Everything that changes something is a POST, PUT or DELETE.** A page on another site can make
+the browser send a GET without an Origin (an image, a link), which the Origin check can't
+refuse; requests that change something always carry one. So `/prepare` (it can start a
+download) and `/open-folder` are POSTs.
+
+**`/state` is the one thing the player polls.** It carries the running downloads, the jobs of
+the videos the player waits on, the Downloads list's revision and the captions' state. Add to
+it rather than adding an endpoint to poll.
+
+**Errors are raised, not returned:** `raise ApiError("unknown playlist", 404)`.
 
 **`library_order` is reassigned by `save_order`,** so other modules read it as
 `store.library_order` rather than importing the name. Everything else is

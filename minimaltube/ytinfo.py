@@ -6,13 +6,15 @@ the same video share one lookup, so /prepare, /description, /chapters, /channel-
 caption check don't each ask YouTube again (fewer requests, fewer "confirm you're not a bot").
 `video_meta()` is the light one for the feed: title, upload time and length only.
 """
-import re
+from __future__ import annotations  # `float | None` annotations on Python 3.9
+
 import threading
 import time
+from datetime import datetime, timezone
 
 import yt_dlp
 
-from .config import VIDEO_ID_RE
+from .links import watch_url, youtube_ids
 
 QUIET = {"quiet": True, "no_warnings": True, "noprogress": True}
 INFO_TTL = 300        # seconds a lookup is reused (stream URLs stay valid for hours)
@@ -27,16 +29,28 @@ def ydl(**opts):
     return yt_dlp.YoutubeDL({**QUIET, **opts})
 
 
-URL_VIDEO_ID_RE = re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/live/|/embed/)([A-Za-z0-9_-]{11})")
-
-
 def _target(video):
     """A video id or a URL -> (cache key, URL to ask yt-dlp); any URL form of a video shares
     its id as the key."""
-    if VIDEO_ID_RE.match(video):
-        return video, f"https://www.youtube.com/watch?v={video}"
-    m = URL_VIDEO_ID_RE.search(video)
-    return (m.group(1) if m else video), video
+    video_id = youtube_ids(video)[0]
+    return (video_id, watch_url(video_id)) if video_id else (video, video)
+
+
+def upload_timestamp(info) -> float | None:
+    """When a video came out, as a Unix time, from yt-dlp's info of it (a full or light lookup,
+    or a channel listing's entry): its release or upload time, else its upload day at UTC
+    midnight. None when the info has neither."""
+    ts = info.get("release_timestamp") or info.get("timestamp")
+    if not ts and info.get("upload_date"):
+        try:
+            ts = datetime.strptime(str(info["upload_date"]), "%Y%m%d").replace(
+                tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            ts = None
+    try:
+        return float(ts) if ts else None
+    except (TypeError, ValueError):
+        return None
 
 
 def video_info(video: str, *, fresh: bool = False, keep: bool = True):

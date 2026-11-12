@@ -1,4 +1,5 @@
-/* MinimalTube player - Saved playlists: loading one into the queue and the "Save as playlist" dialog.
+/* MinimalTube player - Saved playlists: loading one into the queue, deleting one (with Undo) and the "Save as
+ * playlist" dialog.
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
 /* =====================================================================
@@ -8,13 +9,6 @@
  * Loading one REPLACES the queue, so an unsaved queue is gone. Separate from
  * "Remember queue between sessions": it never touches `savedQueue`.
  * ===================================================================== */
-const byId = (id) => document.getElementById(id);
-const ICON_PLAY =
-  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-const ICON_ADDLIST =
-  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h12v2H3zM3 11h12v2H3zM3 16h8v2H3zM18 13v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>';
-const ICON_NEXT =
-  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h11v2H3zM3 11h11v2H3zM3 16h7v2H3zM16 10v8l6-4z"/></svg>';
 const savePlBtn = byId("savePlBtn"),
   savePlModal = byId("savePlModal"),
   savePlTitle = byId("savePlTitle"),
@@ -49,32 +43,14 @@ async function loadSavedPlaylists() {
   }
 }
 
+// The queue becomes this playlist (see "The saved playlist behind the queue" in queue.js) and it
+// starts playing, from `startIndex`.
 function loadPlaylistIntoQueue(pl, startIndex = 0) {
-  const items = (pl.items || []).map((entry) => ({
-    id: entry.id,
-    title: entry.title || entry.url,
-    url: entry.url,
-  }));
+  const items = (pl.items || []).map((entry) => ({ id: entry.id, title: entry.title || entry.url, url: entry.url }));
   if (!items.length) return notify("This playlist is empty", true, 3000);
   queueAddToken++; // abandon any playlist/URL still being resolved for the old queue
-  playSource = "queue";
   const start = Math.min(Math.max(0, startIndex), items.length - 1);
-  queue = {
-    items,
-    currentIndex: start,
-    playlistId: pl.id,
-  };
-  linkedPlaylistKey = playlistSyncKey(pl.id, items);
-  queue.items.forEach((item, index) => (item.index = index + 1));
-  queueIndex = start;
-  resetDownloadAllButton();
-  renderQueue();
-  refreshLibrary();
-  markActiveQueueRow();
-  scrollActiveQueueRowIntoView();
-  startQueuePolling();
-  prefetchNextInQueue();
-  saveQueue();
+  setQueue(items, { index: start, playlistId: pl.id });
   notify(`Loaded playlist: ${pl.name}`);
   playVideo(items[start].url);
 }
@@ -82,21 +58,16 @@ function loadPlaylistIntoQueue(pl, startIndex = 0) {
 function deleteSavedPlaylist(pl) {
   const at = savedPlaylists.findIndex((playlist) => playlist.id === pl.id);
   if (at < 0) return;
-  const linked = queue && queue.playlistId === pl.id ? queue : null;
   hiddenPlaylists.add(pl.id);
   savedPlaylists.splice(at, 1);
-  if (linked) {
-    linked.playlistId = null;
-    renderQueue();
-    saveQueue();
-  }
+  const linked = unlinkQueue(pl.id) ? queue : null; // a queue that was this playlist goes on as a plain one
   renderPlaylistCards();
   const restore = () => {
     hiddenPlaylists.delete(pl.id);
     if (!savedPlaylists.some((playlist) => playlist.id === pl.id))
       savedPlaylists.splice(Math.min(at, savedPlaylists.length), 0, pl);
     if (linked && queue === linked && !linked.playlistId) {
-      linked.playlistId = pl.id;
+      linkQueueToPlaylist(pl.id, false); // what changed in the queue meanwhile goes to the playlist
       renderQueue();
       saveQueue();
     }
@@ -164,7 +135,7 @@ function openSavePlaylist(opts) {
     : "Save queue as playlist";
   savePlSub.textContent = savePlPending
     ? savePlPending.sub
-    : `${queue.items.length} video${queue.items.length === 1 ? "" : "s"} from the current queue`;
+    : `${plural(queue.items.length, "video")} from the current queue`;
   savePlName.value = "";
   refreshSavePlHint();
   savePlModal.classList.add("open");
@@ -177,7 +148,7 @@ function openSavePlaylist(opts) {
 function takeYouTubePlaylist(pl) {
   queueAddToken++;
   if (currentVideoId) stopPlayback();
-  setQueueFromPlaylist({ items: pl.items, currentIndex: -1 });
+  setQueue(pl.items);
   offerSaveYouTubePlaylist(pl);
 }
 async function offerSaveYouTubePlaylist(pl) {
@@ -193,7 +164,7 @@ async function offerSaveYouTubePlaylist(pl) {
     })),
     title: "Save as playlist",
     sub:
-      `${count} video${count === 1 ? "" : "s"} from the YouTube playlist` +
+      `${plural(count, "video")} from the YouTube playlist` +
       (pl.name ? ` "${pl.name}"` : ""),
     allowReplace: true,
     ytListId: pl.listId || null,
@@ -237,15 +208,12 @@ async function submitSavePlaylist() {
       body: { name, items, overwrite: replacing },
     });
     closeSavePlaylist();
-    if (fromQueue && data.playlist && queue && queue === savedQueueObj) {
-      queue.playlistId = data.playlist.id;
-      linkedPlaylistKey = playlistSyncKey(queue.playlistId, queue.items);
-    }
+    if (fromQueue && data.playlist && queue && queue === savedQueueObj) linkQueueToPlaylist(data.playlist.id);
     const skipped = data.skipped || 0;
     notify(
       `${data.replaced ? "Updated" : "Saved"} playlist: ${name}` +
         (skipped
-          ? ` (${skipped} unresolved video${skipped === 1 ? "" : "s"} skipped)`
+          ? ` (${plural(skipped, "unresolved video")} skipped)`
           : ""),
       false,
       skipped ? 3500 : 2500,

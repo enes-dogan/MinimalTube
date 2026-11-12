@@ -1,13 +1,24 @@
-/* MinimalTube player - The player page's shared pieces: its elements, the connection state, notices, SponsorBlock lookups,
- * the server API (api, requestDownloads), small DOM helpers and the layer stack (Esc / click outside).
+/* MinimalTube player - The player page's shared pieces: its elements, the connection state, notices, the server API
+ * (api, prepareVideo), small DOM helpers and the layer stack (Esc / click outside).
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
 // One player at a time: opened with nothing to open while another runs, this one hands over to
 // it and is closed (background.js, playerOpened)
 chrome.runtime.sendMessage({ type: "minimaltube-player-opened", bare: !location.search }, () => chrome.runtime.lastError);
 
-const DEFAULT_SERVER = "http://127.0.0.1:7860",
-  video = document.getElementById("video"),
+// Opened straight from the app menu, the server may not be running yet: the extension starts it
+// (native host) and says where it is. Nothing is asked of the server before that answer, so a
+// fresh start doesn't begin with refused requests; api() waits for it. Without an answer (the
+// extension was just reloaded) the wait ends by itself.
+const serverReady = new Promise((resolve) => {
+  setTimeout(resolve, 15000);
+  chrome.runtime.sendMessage({ type: "minimaltube-ensure-server" }, (res) => {
+    if (!chrome.runtime.lastError && res && res.ok && res.serverBase) serverBase = res.serverBase;
+    resolve();
+  });
+});
+
+const video = document.getElementById("video"),
   placeholder = document.getElementById("placeholder"),
   loadingBox = document.getElementById("loading"),
   loadingText = document.getElementById("loadingText"),
@@ -52,10 +63,10 @@ const DEFAULT_SERVER = "http://127.0.0.1:7860",
   seekBuffered = document.getElementById("seekBuffered"),
   toastEl = document.getElementById("toast");
 /* ---- Connection state. The server owns it: whenever something of its fails it checks whether
- * YouTube answers, and every response carries the result (X-MinimalTube-Net). A browser network
- * error on an internet URL, or the browser's offline / online events, ask it directly. While
- * offline it's asked every 10 s; the parts of the app registered with whenNetChanges() resume
- * when the connection is back. ---- */
+ * YouTube answers (and keeps checking while it doesn't), and every response carries the result
+ * (X-MinimalTube-Net), the state loop's among them (jobs.js). A browser network error on an
+ * internet URL, or the browser's offline / online events, ask it directly. The parts of the app
+ * registered with whenNetChanges() resume when the connection is back. ---- */
 const OFFLINE_TEXT = "No internet connection";
 const offlineBadge = document.createElement("span");
 offlineBadge.id = "offlineBadge";
@@ -64,16 +75,13 @@ offlineBadge.title = `${OFFLINE_TEXT}: YouTube can't be reached`;
 document.getElementById("browseBrand").appendChild(offlineBadge);
 const nativeFetch = window.fetch.bind(window);
 const netListeners = [];
-let netProbe = null,
-  netTimer = 0;
+let netProbe = null;
 const isOffline = () => offlineBadge.classList.contains("show");
 const whenNetChanges = (fn) => netListeners.push(fn);
 const netMessage = (fallback) => (isOffline() ? OFFLINE_TEXT : fallback);
 function setOffline(off) {
   const changed = off !== isOffline();
   offlineBadge.classList.toggle("show", off);
-  clearTimeout(netTimer);
-  if (off) netTimer = setTimeout(checkNet, 10000);
   if (!changed) return;
   netListeners.forEach((fn) => {
     try {
@@ -127,23 +135,7 @@ let serverBase = DEFAULT_SERVER,
   streamOnly = false, // stream without downloading (only with streamWhileDownloading)
   liveStream = null,
   hasSubtitles = false,
-  queue = null,
-  queueIndex = -1,
-  queueAddToken = 0,
-  loadToken = 0;
-// "queue" | "library": which list the current video came from; "detour": played on the side of a
-// queue that is a saved playlist (playVideoNow), which carries on after it
-let playSource = "queue";
-function formatTime(seconds, long = false) {
-  const total = isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0,
-    pad = (v) => String(v).padStart(2, "0"),
-    hours = Math.floor(total / 3600),
-    minutes = Math.floor((total % 3600) / 60),
-    sec = total % 60;
-  return long
-    ? `${pad(hours)}:${pad(minutes)}:${pad(sec)}`
-    : `${pad(minutes)}:${pad(sec)}`;
-}
+  loadToken = 0; // bumped when another video starts loading: what was under way for the last one stops
 // The one way to tell the user something: a toast at the bottom of the window (over the
 // controls in the player, at the bottom edge while browsing, inside the player in fullscreen).
 function notify(message, isError = false, ms = 2500) {
@@ -153,84 +145,15 @@ function notify(message, isError = false, ms = 2500) {
   clearTimeout(notify._t);
   notify._t = setTimeout(() => toastEl.classList.remove("show"), ms);
 }
-function showError(message) {
-  errorBox.textContent = message;
-  errorBox.style.display = "block";
-}
-// While a video is still downloading its control bar is shown, but play / seek / captions /
-// speed are switched off until it can actually play.
-function setDlWait(on) {
-  controls.classList.toggle("dlWait", on);
-  [playPauseBtn, seekWrap, captionsBtn, speedBadge].forEach((el) => {
-    if (el) el.inert = on;
-  });
-}
-function setLoadFailed(on) {
-  controls.classList.toggle("loadFailed", on);
-  [playPauseBtn, seekWrap, captionsBtn, speedBadge, fullscreenBtn].forEach(
-    (el) => {
-      if (el) el.inert = on;
-    },
+function isTypingTarget(el) {
+  return (
+    !!el &&
+    (!!el.isContentEditable ||
+      el.tagName === "TEXTAREA" ||
+      el.tagName === "SELECT" ||
+      (el.tagName === "INPUT" &&
+        !["range", "checkbox", "radio", "button"].includes(el.type)))
   );
-  if (on) captionsBtn.style.display = "flex";
-}
-function clearError() {
-  errorBox.style.display = "none";
-  errorBox.textContent = "";
-}
-function videoIdFromUrl(rawUrl) {
-  try {
-    const url = new URL(rawUrl);
-    return url.hostname.includes("youtu.be")
-      ? url.pathname.slice(1).split("/")[0] || null
-      : url.searchParams.get("v");
-  } catch {
-    return null;
-  }
-}
-function playlistIdFromUrl(rawUrl) {
-  try {
-    return new URL(rawUrl).searchParams.get("list");
-  } catch {
-    return null;
-  }
-}
-async function loadSponsorSegments(videoId) {
-  sponsorSegments = [];
-  if (videoId && sponsorBlockEnabled)
-    try {
-      // through the server: it keeps a download's segments, so they're there offline too
-      const { segments } = await api(`/sponsorblock/${encodeURIComponent(videoId)}`);
-      if (videoId !== currentVideoId || !Array.isArray(segments)) return;
-      sponsorSegments = segments;
-      renderSeekMarks();
-    } catch (err) {
-      logQuiet("SponsorBlock", err);
-    }
-}
-function announceSponsorSkip(seconds) {
-  notify(`Skipped sponsor segment (${seconds}s)`);
-}
-function skipSponsorSegmentIfInside() {
-  if (!sponsorBlockEnabled || sponsorSegments.length === 0) return;
-  const at = video.currentTime;
-  for (const segment of sponsorSegments)
-    if (at >= segment.start && at < segment.end - 0.05) {
-      const skipped = Math.round(segment.end - at);
-      video.currentTime = segment.end;
-      announceSponsorSkip(skipped);
-      break;
-    }
-}
-// Errors that don't break anything go to the extension console (right-click → Inspect on the
-// player), at most once a minute per place, so an offline spell doesn't flood it.
-const quietLogged = new Map();
-function logQuiet(where, err) {
-  if (err && err.name === "AbortError") return;
-  const now = Date.now();
-  if (now - (quietLogged.get(where) || 0) < 60000) return;
-  quietLogged.set(where, now);
-  console.warn(`MinimalTube (${where}):`, err);
 }
 async function readServerJson(res) {
   const data = await res.json().catch(() => ({}));
@@ -244,6 +167,7 @@ async function readServerJson(res) {
   return data;
 }
 async function api(path, { method = "GET", body, keepalive } = {}) {
+  await serverReady;
   const json = body !== undefined;
   const res = await fetch(`${serverBase}${path}`, {
     method,
@@ -253,25 +177,21 @@ async function api(path, { method = "GET", body, keepalive } = {}) {
   });
   return readServerJson(res);
 }
-async function requestDownloads(ids, items) {
-  const data = await api("/queue", {
-    method: "POST",
-    body: { ids, titles: titlesFor(items), sponsorblock: sponsorBlockEnabled },
-  });
-  pollDownloadsSoon();
-  return data;
-}
 /**
- * The /prepare request for a video, carrying the settings the server acts on: Stream only, and
- * SponsorBlock (a download then keeps the video's sponsor segments for offline playback).
- * @param {string} url The video's YouTube URL.
+ * Asks the server to get a video ready to play (POST /prepare), with the settings the server acts
+ * on: Stream only, and SponsorBlock (a download then keeps the video's sponsor segments for
+ * offline playback). A video that isn't downloaded starts downloading, unless Stream only.
+ * @param {string} url The video's YouTube link.
  * @param {boolean} [streamOnly] Stream without downloading; defaults to the Stream only setting.
- * @returns {string} The path to pass to api().
+ * @returns {Promise<object>} The video's job: {status, video_id, title, has_subtitles}, plus
+ *   {stream, duration} while it isn't downloaded. `status` is "ready", "streaming" (Stream only)
+ *   or a download's ("downloading", "merging", ...).
  */
-function preparePath(url, streamOnly = streamOnlyMode()) {
-  return `/prepare?url=${encodeURIComponent(url)}${streamOnly ? "&stream_only=1" : ""}${
-    sponsorBlockEnabled ? "&sponsorblock=1" : ""
-  }`;
+function prepareVideo(url, streamOnly = streamOnlyMode()) {
+  return api("/prepare", {
+    method: "POST",
+    body: { url, stream_only: streamOnly, sponsorblock: sponsorBlockEnabled },
+  });
 }
 /**
  * Letter keys for a dialog's buttons while it shows, the ones its key hints name. They're caught
@@ -318,12 +238,20 @@ function el(tag, className, text) {
   if (text != null) node.textContent = text;
   return node;
 }
+const byId = (id) => document.getElementById(id);
 // The player's files run one after another, and a storage read or fetch started by one of them
 // can finish before the later files have run; work that may call into them waits for all of them.
 function whenLoaded(fn) {
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", () => fn(), { once: true });
   else fn();
+}
+function resetStrayScroll() {
+  ["app", "playerFrame", "mainArea", "stage"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && el.scrollLeft) el.scrollLeft = 0;
+  });
+  if (document.scrollingElement.scrollLeft) document.scrollingElement.scrollLeft = 0;
 }
 
 /* ---- Layers: everything that opens over the app (panels, menus, dialogs) registers once.
@@ -357,17 +285,3 @@ document.addEventListener(
   },
   true,
 );
-
-function fetchJobStatus(videoId) {
-  return api(`/status/${videoId}`);
-}
-function setLoadingText(message) {
-  loadingText.textContent = message;
-}
-function showLoadingStatus(job) {
-  if (job.status === "waiting") setLoadingText(`${OFFLINE_TEXT}: waiting to continue…`);
-  else if (job.status === "downloading")
-    setLoadingText(`Downloading… ${job.percent ?? 0}%`);
-  else if (job.status === "merging") setLoadingText("Merging audio + video…");
-  else setLoadingText("Resolving video…");
-}

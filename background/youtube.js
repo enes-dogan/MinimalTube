@@ -1,8 +1,8 @@
-// MinimalTube - everything that talks to youtube.com from the background, in one place:
-// page parsing, InnerTube calls, watch-history pings and playlist reads/edits. YouTube
-// changes these shapes now and then; when something breaks, this is the only file to fix.
+/* MinimalTube background - everything that talks to youtube.com, in one place: page parsing,
+ * InnerTube calls, watch-history pings, playlist reads / edits, subscriptions and collabs.
+ * YouTube changes these shapes now and then; when something breaks, this is the only file to fix.
+ * Loaded by background.js (importScripts: one scope with the other background files). */
 
-const YT_ORIGIN = "https://www.youtube.com";
 const YT_PLAYLIST_MAX = 200; // two-way sync
 const YT_PLAYLIST_READ_MAX = 5000; // just reading one (the playlist-page button)
 const CPN_ALPHABET =

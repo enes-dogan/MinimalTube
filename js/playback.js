@@ -1,9 +1,43 @@
-/* MinimalTube player - Playing a video: /prepare, streaming (stream.js) and the handover to the downloaded file,
- * captions, adding to the queue, seek / volume / speed / fullscreen basics.
+/* MinimalTube player - Playing a video: preparing it, streaming (stream.js) and the handover to the downloaded
+ * file, SponsorBlock, captions, the basic controls (seek, volume, speed, fullscreen) and the
+ * system's media controls.
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
-const isDownloadedId = (id) =>
-  !!id && library.some((entry) => entry.id === id && !isActiveEntry(entry));
+function showError(message) {
+  errorBox.textContent = message;
+  errorBox.style.display = "block";
+}
+// While a video is still downloading its control bar is shown, but play / seek / captions /
+// speed are switched off until it can actually play.
+function setDlWait(on) {
+  controls.classList.toggle("dlWait", on);
+  [playPauseBtn, seekWrap, captionsBtn, speedBadge].forEach((el) => {
+    if (el) el.inert = on;
+  });
+}
+function setLoadFailed(on) {
+  controls.classList.toggle("loadFailed", on);
+  [playPauseBtn, seekWrap, captionsBtn, speedBadge, fullscreenBtn].forEach(
+    (el) => {
+      if (el) el.inert = on;
+    },
+  );
+  if (on) captionsBtn.style.display = "flex";
+}
+function clearError() {
+  errorBox.style.display = "none";
+  errorBox.textContent = "";
+}
+function setLoadingText(message) {
+  loadingText.textContent = message;
+}
+function showLoadingStatus(job) {
+  if (job.status === "waiting") setLoadingText(`${OFFLINE_TEXT}: waiting to continue…`);
+  else if (job.status === "downloading")
+    setLoadingText(`Downloading… ${job.percent ?? 0}%`);
+  else if (job.status === "merging") setLoadingText("Merging audio + video…");
+  else setLoadingText("Resolving video…");
+}
 // A video that couldn't start because the connection was gone; it starts once it's back
 // (unless something else was played meanwhile).
 let pendingPlay = null;
@@ -19,7 +53,7 @@ async function playVideo(rawUrl, { gentle = true, autoplay = true } = {}) {
   // Offline, a video that isn't downloaded can't play: keep the one being watched (and the
   // queue pointing at it).
   if (isOffline() && isWatching() && !isDownloadedId(videoIdFromUrl(rawUrl))) {
-    const idx = libraryIndexOfId(currentVideoId);
+    const idx = queueIndexOfId(currentVideoId);
     if (idx >= 0 && idx !== queueIndex) {
       queueIndex = idx;
       markActiveQueueRow();
@@ -56,11 +90,11 @@ async function playVideo(rawUrl, { gentle = true, autoplay = true } = {}) {
   captionsBtn.classList.remove("active");
   clearSubtitles();
   try {
-    let job = await api(preparePath(rawUrl));
+    let job = await prepareVideo(rawUrl);
     if (stale()) return;
     const videoId = job.video_id;
     currentVideoId = videoId;
-    if (job.status !== "ready" && job.status !== "streaming") pollDownloadsSoon();
+    if (job.status !== "ready" && job.status !== "streaming") pollStateSoon();
     markActiveLibraryRow();
     document.title = job.title ? `${job.title} — MinimalTube` : "MinimalTube";
     titleOverlay.textContent = job.title || "";
@@ -75,7 +109,7 @@ async function playVideo(rawUrl, { gentle = true, autoplay = true } = {}) {
       if (picks && (await startLiveStream(videoId, picks, job, stale, undefined, autoplay))) return;
       if (stale()) return;
       notify("This video can't be streamed here, so it's downloading instead.", true, 4000);
-      job = await api(preparePath(rawUrl, false));
+      job = await prepareVideo(rawUrl, false);
       if (stale()) return;
       job.stream = null;
     }
@@ -87,14 +121,11 @@ async function playVideo(rawUrl, { gentle = true, autoplay = true } = {}) {
       }
       if (stale()) return;
     }
-    while (job.status !== "ready") {
-      if (job.status === "error")
-        throw new Error(job.error || "Download failed");
+    if (job.status !== "ready") {
+      // it has to download first: the state loop (jobs.js) says when it's done
       showLoadingStatus(job);
-      await new Promise((resolve) => setTimeout(resolve, 1e3));
-      if (stale()) return;
-      job = await fetchJobStatus(videoId);
-      if (stale()) return;
+      job = await untilDownloaded(videoId, stale, { onProgress: showLoadingStatus });
+      if (!job) return;
     }
     video.src = `${serverBase}/stream/${videoId}`;
     video.addEventListener(
@@ -205,7 +236,7 @@ async function restartStream(videoId, stream, err) {
   setDlWait(true);
   try {
     if (again) throw new Error(firstLine(String((err && err.message) || err)));
-    const job = await api(preparePath(`https://www.youtube.com/watch?v=${videoId}`, true));
+    const job = await prepareVideo(watchUrl(videoId), true);
     if (stale()) return;
     const picks = job.status === "streaming" && LiveStream.pick(job.stream, { adaptive: true });
     if (!picks || !(await startLiveStream(videoId, picks, job, stale, at)))
@@ -220,38 +251,28 @@ async function restartStream(videoId, stream, err) {
         ? `${OFFLINE_TEXT}.\nThe stream stopped; it continues when you're back online.`
         : `The stream stopped.\n${failure.message}`,
     );
-    if (isOffline()) pendingPlay = { url: `https://www.youtube.com/watch?v=${videoId}`, token };
+    if (isOffline()) pendingPlay = { url: watchUrl(videoId), token };
   } finally {
     if (!stale()) loadingBox.style.display = "none";
   }
 }
+// A video that streams while it downloads: once the download is done, playback moves over to
+// the file (or starts from it, when the stream had stopped meanwhile).
 async function followDownload(videoId, token) {
-  while (token === loadToken && videoId === currentVideoId) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    if (token !== loadToken) return;
-    let job;
-    try {
-      job = await fetchJobStatus(videoId);
-    } catch (err) {
-      logQuiet("download progress", err);
-      continue;
-    }
-    if (token !== loadToken) return;
-    if (job.status === "error") {
-      if (!liveStream) {
-        loadingBox.style.display = "none";
-        setLoadFailed(true);
-        showError(`Could not load this video.\n${job.error || "Download failed"}`);
-      }
-      return;
-    }
-    if (job.status === "ready") {
-      if (liveStream) handoverToFile(videoId);
-      else if (streamFallbackAt !== null) playFileAt(videoId, streamFallbackAt, true);
-      refreshLibrary();
-      return;
-    }
-    if (!liveStream) showLoadingStatus(job);
+  const stale = () => token !== loadToken || videoId !== currentVideoId;
+  try {
+    const job = await untilDownloaded(videoId, stale, {
+      patient: true,
+      onProgress: (progress) => liveStream || showLoadingStatus(progress),
+    });
+    if (!job) return;
+    if (liveStream) handoverToFile(videoId);
+    else if (streamFallbackAt !== null) playFileAt(videoId, streamFallbackAt, true);
+  } catch (err) {
+    if (stale() || liveStream) return; // the stream plays on without the file
+    loadingBox.style.display = "none";
+    setLoadFailed(true);
+    showError(`Could not load this video.\n${err.message}`);
   }
 }
 function handoverToFile(videoId) {
@@ -298,6 +319,60 @@ function renderBuffered() {
 ["progress", "timeupdate", "durationchange", "emptied", "seeked"].forEach(
   (type) => video.addEventListener(type, renderBuffered),
 );
+
+function stopPlayback() {
+  loadToken++; // abandon any in-flight prepare/poll loop
+  stopLiveStream();
+  cancelUpNext();
+  closeDesc();
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  clearSubtitles();
+  controls.style.display = "none";
+  setDlWait(false);
+  setLoadFailed(false);
+  loadingBox.style.display = "none";
+  titleOverlay.classList.remove("visible");
+  captionsBtn.style.display = "none";
+  hasSubtitles = false;
+  placeholder.style.display = "";
+  document.title = "MinimalTube";
+  currentVideoId = null;
+  queueIndex = -1;
+  playerFrame.classList.add("empty");
+  playerFrame.classList.remove("tucked");
+  clearSeekExtras();
+  markActiveLibraryRow();
+}
+
+/* ---- SponsorBlock ---- */
+async function loadSponsorSegments(videoId) {
+  sponsorSegments = [];
+  if (videoId && sponsorBlockEnabled)
+    try {
+      // through the server: it keeps a download's segments, so they're there offline too
+      const { segments } = await api(`/sponsorblock/${encodeURIComponent(videoId)}`);
+      if (videoId !== currentVideoId || !Array.isArray(segments)) return;
+      sponsorSegments = segments;
+      renderSeekMarks();
+    } catch (err) {
+      logQuiet("SponsorBlock", err);
+    }
+}
+function skipSponsorSegmentIfInside() {
+  if (!sponsorBlockEnabled || sponsorSegments.length === 0) return;
+  const at = video.currentTime;
+  for (const segment of sponsorSegments)
+    if (at >= segment.start && at < segment.end - 0.05) {
+      const skipped = Math.round(segment.end - at);
+      video.currentTime = segment.end;
+      notify(`Skipped sponsor segment (${skipped}s)`);
+      break;
+    }
+}
+
+/* ---- Captions ---- */
 function normalizeCue(cue) {
   cue.snapToLines = true;
   cue.line = -1;
@@ -318,21 +393,15 @@ function attachSubtitleTrack(videoId, token = loadToken) {
   track.label = "Subtitles";
   track.src = `${serverBase}/subtitles/${videoId}`;
   const apply = () => {
-    const firstTrack = video.textTracks[0];
-    if (firstTrack) {
-      firstTrack.mode = captionsWanted ? "showing" : "hidden";
-      (() => {
-        const textTrack = video.textTracks[0];
-        if (textTrack && textTrack.cues)
-          Array.from(textTrack.cues).forEach((cue) => {
-            normalizeCue(cue);
-            if (!cue._minimaltubeNormalized) {
-              cue._minimaltubeNormalized = true;
-              cue.addEventListener("enter", () => normalizeCue(cue));
-            }
-          });
-      })();
-    }
+    const textTrack = video.textTracks[0];
+    if (!textTrack) return;
+    textTrack.mode = captionsWanted ? "showing" : "hidden";
+    Array.from(textTrack.cues || []).forEach((cue) => {
+      normalizeCue(cue);
+      if (cue._minimaltubeNormalized) return;
+      cue._minimaltubeNormalized = true;
+      cue.addEventListener("enter", () => normalizeCue(cue));
+    });
   };
   track.addEventListener("load", apply);
   video.appendChild(track);
@@ -342,27 +411,24 @@ function attachSubtitleTrack(videoId, token = loadToken) {
   captionsBtn.classList.toggle("active", captionsWanted);
 }
 // Captions that arrive after the video started (fetched alongside the download, or for a
-// stream) are attached the moment they're there; the video keeps playing where it is.
-async function waitForSubtitles(
-  videoId,
-  triesLeft = 120,
-  delayMs = 1500,
-  token = loadToken,
-) {
-  if (triesLeft <= 0 || videoId !== currentVideoId || token !== loadToken) return;
-  try {
-    const state = await api(`/subtitles/${videoId}/state`);
-    if (videoId !== currentVideoId || token !== loadToken) return;
-    if (state.has) return attachSubtitleTrack(videoId, token);
-    if (state.decided) return; // this video has no captions we'd show
-  } catch (err) {
-    logQuiet("captions state", err);
-  }
-  setTimeout(
-    () => waitForSubtitles(videoId, triesLeft - 1, delayMs, token),
-    delayMs,
-  );
+// stream) are attached the moment they're there; the video keeps playing where it is. The state
+// loop (jobs.js) asks about them along with everything else, for up to CAPTIONS_WAIT_MS.
+const CAPTIONS_WAIT_MS = 180000;
+let captionsWait = null; // {id, token, until} while they're waited for
+function waitForSubtitles(videoId, token = loadToken) {
+  captionsWait = { id: videoId, token, until: Date.now() + CAPTIONS_WAIT_MS };
+  captionsAwaited = videoId;
+  pollStateSoon();
 }
+whenStateChanges((state) => {
+  const wait = captionsWait;
+  if (!wait) return;
+  const answer = state.captions && state.captions.id === wait.id ? state.captions : null,
+    over = wait.id !== currentVideoId || wait.token !== loadToken || Date.now() > wait.until;
+  if (!over && answer && answer.has) attachSubtitleTrack(wait.id, wait.token);
+  // "decided" without captions: this video has none we'd show
+  if (over || (answer && (answer.has || answer.decided))) captionsWait = captionsAwaited = null;
+});
 function setCaptionsEnabled(enabled) {
   captionsWanted = enabled;
   captionsBtn.classList.toggle("active", enabled);
@@ -375,131 +441,6 @@ function setCaptionsEnabled(enabled) {
 function toggleCaptions() {
   if (hasSubtitles) setCaptionsEnabled(!captionsWanted);
 }
-function appendToQueue(newItems, { autoPlayIfEmpty = true } = {}) {
-  if (!newItems || !newItems.length) return -1;
-  const wasEmpty = !queue || !queue.items.length;
-  if (!queue)
-    queue = {
-      items: [],
-      currentIndex: -1,
-    };
-  const firstIndex = queue.items.length;
-  return (
-    newItems.forEach((item) =>
-      queue.items.push({
-        ...item,
-      }),
-    ),
-    queue.items.forEach((item, index) => (item.index = index + 1)),
-    resetDownloadAllButton(),
-    renderQueue(),
-    refreshLibrary(),
-    startQueuePolling(),
-    saveQueue(),
-    wasEmpty && autoPlayIfEmpty
-      ? ((playSource = "queue"),
-        (queueIndex = firstIndex),
-        markActiveQueueRow(),
-        scrollActiveQueueRowIntoView(),
-        prefetchNextInQueue(),
-        playVideo(queue.items[queueIndex].url))
-      : wasEmpty ||
-        notify(
-          newItems.length > 1
-            ? `Added ${newItems.length} to queue`
-            : "Added to queue",
-        ),
-    firstIndex
-  );
-}
-function stripPlaylistParams(rawUrl) {
-  try {
-    const url = new URL(rawUrl);
-    return (
-      url.pathname !== "/playlist" &&
-        (url.searchParams.delete("list"),
-        url.searchParams.delete("index"),
-        url.searchParams.delete("start_radio")),
-      url.toString()
-    );
-  } catch {
-    return rawUrl;
-  }
-}
-async function addUrlToQueue(rawUrl) {
-  const locked = queueLockedReason();
-  if (locked) return notify(locked, true, 5000);
-  rawUrl = stripPlaylistParams(rawUrl);
-  const token = ++queueAddToken,
-    listId = playlistIdFromUrl(rawUrl),
-    videoId = videoIdFromUrl(rawUrl),
-    wasEmpty = !queue || !queue.items.length;
-  if (!listId) {
-    const t = appendToQueue([
-      {
-        title: rawUrl,
-        url: rawUrl,
-      },
-    ]);
-    try {
-      const data = await api(preparePath(rawUrl)),
-        item = queue && queue.items[t];
-      if (item && item.url === rawUrl) {
-        item.id = data.video_id;
-        item.title = data.title || item.title;
-        renderQueue();
-        saveQueue();
-      }
-    } catch (err) {
-      logQuiet("queue a link", err);
-    }
-    return;
-  }
-  if (videoId && wasEmpty) {
-    appendToQueue([
-      {
-        title: rawUrl,
-        url: rawUrl,
-      },
-    ]);
-    try {
-      const pl = await fetchPlaylist(rawUrl);
-      if (token !== queueAddToken) return;
-      if (pl.items && pl.items.length) {
-        queue = {
-          items: pl.items,
-          currentIndex: pl.currentIndex,
-        };
-        queue.items.forEach((item, index) => (item.index = index + 1));
-        queueIndex = pl.currentIndex;
-        resetDownloadAllButton();
-        renderQueue();
-        markActiveQueueRow();
-        scrollActiveQueueRowIntoView();
-        prefetchNextInQueue();
-        saveQueue();
-      }
-    } catch (err) {
-      notify(`Couldn't load playlist: ${firstLine(err.message)}`, true, 4e3);
-    }
-    return;
-  }
-  let playlist;
-  notify("Loading playlist…");
-  try {
-    playlist = await fetchPlaylist(rawUrl);
-    if (!playlist.items || !playlist.items.length)
-      throw new Error("This playlist is empty.");
-  } catch (err) {
-    if (token !== queueAddToken) return;
-    notify(`Couldn't load playlist: ${firstLine(err.message)}`, true, 4e3);
-    return;
-  }
-  if (token === queueAddToken) appendToQueue(playlist.items);
-}
-function firstLine(message) {
-  return String(message).split("\n")[0].slice(0, 200);
-}
 function togglePlayPause() {
   if (video.paused) video.play().catch(() => {});
   else video.pause();
@@ -510,23 +451,15 @@ function flashPlayPause(paused) {
   restartAnimation(centerFlash, "flash");
 }
 captionsBtn.addEventListener("click", toggleCaptions);
-chrome.runtime.onMessage.addListener((item, t, fn) => {
-  if (item?.type === "minimaltube-queue-add" && item.url) {
-    addUrlToQueue(item.url);
-    fn({
-      ok: true,
-    });
-  } else if (item?.type === "minimaltube-take-playlist" && item.playlist) {
-    whenLoaded(() => takeYouTubePlaylist(item.playlist));
-    fn({ ok: true });
-  } else if (item?.type === "minimaltube-subscriptions-imported") {
-    whenLoaded(() => subscriptionsImported(item.result));
-    fn({ ok: true });
-  } else if (item?.type === "minimaltube-play-now" && item.url) {
-    whenLoaded(() => playLinkNow(item.url));
-    fn({ ok: true });
-  }
-});
+function flashSpeed() {
+  flashText(`${playbackRate.toFixed(2)}x`);
+}
+function flashText(text) {
+  centerFlash.querySelector(".txt").textContent = text;
+  centerFlash.classList.remove("show-pause");
+  centerFlash.classList.add("show-text");
+  restartAnimation(centerFlash, "flash");
+}
 playPauseBtn.addEventListener("click", togglePlayPause);
 const DOUBLE_CLICK_MS = 250;
 let singleClickTimer = null;
@@ -580,8 +513,12 @@ try {
   logQuiet("playback prefs (read)", err);
 }
 video.addEventListener("click", () => {
-  if (singleClickTimer)
-    return (clearTimeout(singleClickTimer), void (singleClickTimer = null));
+  if (singleClickTimer) {
+    // the second click of a double click: that one is fullscreen's
+    clearTimeout(singleClickTimer);
+    singleClickTimer = null;
+    return;
+  }
   singleClickTimer = setTimeout(() => {
     singleClickTimer = null;
     togglePlayPause();
@@ -647,16 +584,6 @@ speedBadge.addEventListener(
   },
 );
 speedBadge.addEventListener("click", () => setPlaybackRate(1));
-function isTypingTarget(el) {
-  return (
-    !!el &&
-    (!!el.isContentEditable ||
-      el.tagName === "TEXTAREA" ||
-      el.tagName === "SELECT" ||
-      (el.tagName === "INPUT" &&
-        !["range", "checkbox", "radio", "button"].includes(el.type)))
-  );
-}
 function hasVideoLoaded() {
   return !!video.getAttribute("src");
 }
@@ -688,4 +615,10 @@ navigator.mediaSession.setActionHandler("seekbackward", (details) => mediaSeek(-
 navigator.mediaSession.setActionHandler("seekforward", (details) => mediaSeek(details.seekOffset || 5));
 navigator.mediaSession.setActionHandler("seekto", (details) => {
   video.currentTime = details.seekTime;
+});
+fullscreenBtn.addEventListener("click", toggleFullscreen);
+document.addEventListener("fullscreenchange", () => {
+  fullscreenBtn.classList.toggle("is-fullscreen", !!document.fullscreenElement);
+  const host = document.fullscreenElement || document.body;
+  host.append(undoBar, toastEl, settingsPanel);
 });

@@ -105,7 +105,7 @@
   opacity: 0.95;
   color: var(--warn);
 }
-#bpMenu .dots {
+.rowMenuItem .dots {
   display: inline-block;
   width: 1.1em;
   text-align: left;

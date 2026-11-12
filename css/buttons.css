@@ -109,12 +109,14 @@
 .plItem:hover .plMenuBtn,
 .plItem:focus-visible .plMenuBtn,
 .plItem.menuOpen .plMenuBtn,
+.vMenuBtn.menuOpen,
 .vMenuBtn:hover,
 .plMenuBtn:hover {
   opacity: 1;
 }
 .vMenuBtn:hover,
 .plMenuBtn:hover,
+.vMenuBtn.menuOpen,
 .plItem.menuOpen .plMenuBtn {
   background: var(--wash-3);
 }

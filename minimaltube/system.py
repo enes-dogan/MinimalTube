@@ -12,8 +12,12 @@ Where things are kept:
 """
 from __future__ import annotations  # `str | None` annotations on Python 3.9
 
+import base64
+import hashlib
+import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -21,6 +25,11 @@ from pathlib import Path
 
 WINDOWS = sys.platform == "win32"
 MACOS = sys.platform == "darwin"
+
+# The server listens on SERVER_PORT, or on the next free one of SERVER_PORTS when another program
+# has that (the extension looks for it on the same ports: js/common.js).
+SERVER_PORT = 7860
+SERVER_PORTS = 10
 
 
 def _local_appdata() -> Path:
@@ -57,10 +66,35 @@ def bin_dir() -> Path:
     return app_dir() / "bin"
 
 
-def own_python() -> Path:
-    """MinimalTube's own Python, where the installer puts one (it may not exist)."""
-    root = app_dir() / "python"
-    return root / "python.exe" if WINDOWS else root / "bin" / "python3"
+def extension_id(manifest) -> str | None:
+    """The id Chromium gives the extension a manifest.json belongs to.
+
+    It follows from the manifest's "key": the SHA-256 of that public key, its first 32 hex digits
+    written with the letters a-p, so it is the same on every machine.
+
+    Args:
+        manifest (str | Path): The extension's manifest.json.
+
+    Returns:
+        str | None: The 32-letter id, or None when the file can't be read or has no "key" (the
+        browser then picks an id of its own).
+    """
+    try:
+        key = json.loads(Path(manifest).read_text(encoding="utf-8"))["key"]
+        digest = hashlib.sha256(base64.b64decode(key)).hexdigest()[:32]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop"))
+
+
+def port_is_free(host: str, port: int) -> bool:
+    """Whether nothing listens on host:port right now (it can be bound)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
+            return True
+        except OSError:
+            return False
 
 
 def use_own_tools() -> None:
@@ -133,6 +167,28 @@ def spawn_detached(cmd: list, cwd=None, stdout=None, stderr=None) -> subprocess.
         return subprocess.Popen(cmd, creationflags=flags, **kwargs)
 
 
+def run_again(windows_arg: str | None = None) -> None:
+    """Run this program again in place of the running one (the server, after an update). Never
+    returns.
+
+    POSIX replaces the process: same PID, same terminal or log. Windows has no real exec, so a new
+    process starts with the same command line into the same log, and this one ends.
+
+    Args:
+        windows_arg (str | None): Added to the new process's command line on Windows: the flag
+            that tells it to wait until this one has let go of what it holds (the port).
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    argv = list(getattr(sys, "orig_argv", None) or [sys.executable, "-u", *sys.argv])
+    if not WINDOWS:
+        os.execv(sys.executable, argv)
+    if windows_arg and windows_arg not in argv:
+        argv.append(windows_arg)
+    spawn_detached(argv, cwd=os.getcwd(), stdout=sys.stdout, stderr=sys.stderr)
+    os._exit(0)
+
+
 def open_folder(path) -> None:
     """Show a folder in the system's file manager.
 
@@ -157,5 +213,7 @@ def open_folder(path) -> None:
 
 
 def installer_hint() -> str:
-    """How to run the installer on this OS, for messages."""
-    return "install.cmd" if WINDOWS else "./install.sh"
+    """The installer to run on this OS, for messages (the extension names the same ones)."""
+    if WINDOWS:
+        return "install.cmd"
+    return "install.command" if MACOS else "./install.sh"

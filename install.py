@@ -19,8 +19,6 @@ No step needs admin rights. Run it again after moving this folder.
 """
 from __future__ import annotations  # `str | None` annotations on Python 3.9
 
-import base64
-import hashlib
 import importlib.util
 import json
 import os
@@ -42,7 +40,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from minimaltube.system import MACOS, WINDOWS, app_dir, bin_dir, use_own_tools  # noqa: E402
+from minimaltube.system import MACOS, WINDOWS, app_dir, bin_dir, extension_id, use_own_tools  # noqa: E402
 
 HOST_NAME = "com.minimaltube.host"
 ID_RE = re.compile(r"^[a-p]{32}$")
@@ -59,20 +57,23 @@ def warn(text: str) -> None:
     print(f"Warning: {text}", flush=True)
 
 
-# ---------------------------------------------------------------- extension id
-def manifest_id() -> str | None:
-    """The id Chrome gives an extension with a "key": the SHA-256 of that public key, its first
-    32 hex digits written with the letters a-p (so it's the same on every machine)."""
+def write_if_changed(path: Path, text: str, encoding: str = "utf-8") -> None:
+    """Write a file the installer generates, byte for byte as given (no newline translation), and
+    only when its content differs: cmd.exe keeps reading a .bat while it runs, so the native-host
+    launcher must not be rewritten under a browser that is using it."""
+    data = text.encode(encoding, errors="replace")
     try:
-        key = json.loads((HERE / "manifest.json").read_text(encoding="utf-8")).get("key")
-        digest = hashlib.sha256(base64.b64decode(key)).hexdigest()[:32]
-    except (OSError, ValueError, TypeError, AttributeError):
-        return None
-    return digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop"))
+        if path.read_bytes() == data:
+            return
+    except OSError:
+        pass
+    path.write_bytes(data)
 
 
+# ---------------------------------------------------------------- extension id
 def extension_ids(argv: list[str]) -> list[str]:
-    ids = list(argv) or [i for i in [manifest_id()] if i]
+    # the id follows from manifest.json's "key" (system.extension_id), the same on every machine
+    ids = list(argv) or [i for i in [extension_id(HERE / "manifest.json")] if i]
     if not ids and sys.stdin.isatty():
         say("Open chrome://extensions, turn on Developer mode and copy MinimalTube's ID.")
         typed = input("Extension ID: ").strip()
@@ -104,9 +105,9 @@ def server_packages() -> None:
         # a system Python (Linux): its packages come from the package manager
         missing = [m for m in ("flask", "flask_cors") if importlib.util.find_spec(m) is None]
         if missing:
-            warn(f"{sys.executable} is missing {', '.join(missing)} (Arch: sudo pacman -S "
-                 "python-flask python-flask-cors python-waitress). Or run the installer with "
-                 "MINIMALTUBE_OWN_PYTHON=1 to give MinimalTube a Python of its own.")
+            warn(f"{sys.executable} is missing {', '.join(missing)}. Run the installer itself "
+                 "(./install.sh) instead of install.py: it gives MinimalTube a Python of its own "
+                 "when the system's lacks them.")
         return
     reqs = []
     for line in (HERE / "requirements.txt").read_text(encoding="utf-8").splitlines():
@@ -122,8 +123,8 @@ def server_packages() -> None:
 
 def own_ytdlp() -> None:
     if importlib.util.find_spec("pip") is None:
-        warn("pip isn't installed, so MinimalTube can't keep its own yt-dlp (a system-wide one is "
-             "used if there is one). Arch: sudo pacman -S python-pip")
+        warn("this Python has no pip, so MinimalTube can't keep its own yt-dlp (a system-wide one "
+             "is used if there is one). Run the installer itself (./install.sh) instead of install.py.")
         return
     say("Installing MinimalTube's own yt-dlp...")
     done = subprocess.run([sys.executable, "-X", "utf8", "-B", str(HERE / "server.py"), "--update-yt-dlp"])
@@ -238,60 +239,104 @@ def tools() -> None:
 
 
 # ---------------------------------------------------------------- browsers
+# The Chromium-based browsers MinimalTube knows, per OS. A browser that isn't listed still works
+# when it is given by hand (MINIMALTUBE_BROWSER) and keeps its native hosts where Chromium does.
+LINUX_BROWSERS = [
+    # name, its folder in ~/.config, its programs, what its app windows' names start with
+    ("Google Chrome", "google-chrome", ["google-chrome-stable", "google-chrome"], "chrome"),
+    ("Google Chrome Beta", "google-chrome-beta", ["google-chrome-beta"], "chrome"),
+    ("Google Chrome Dev", "google-chrome-unstable", ["google-chrome-unstable"], "chrome"),
+    ("Chromium", "chromium", ["chromium", "chromium-browser", "ungoogled-chromium"], "chrome"),
+    ("Brave", "BraveSoftware/Brave-Browser", ["brave", "brave-browser", "brave-browser-stable"], "brave"),
+    ("Brave Beta", "BraveSoftware/Brave-Browser-Beta", ["brave-browser-beta"], "brave"),
+    ("Vivaldi", "vivaldi", ["vivaldi-stable", "vivaldi"], "vivaldi"),
+    ("Microsoft Edge", "microsoft-edge", ["microsoft-edge-stable", "microsoft-edge"], "msedge"),
+    ("Opera", "opera", ["opera"], None),
+]
+MACOS_BROWSERS = [
+    # name, its folder in ~/Library/Application Support, its .app (and program in it)
+    ("Google Chrome", "Google/Chrome", "Google Chrome"),
+    ("Google Chrome Beta", "Google/Chrome Beta", "Google Chrome Beta"),
+    ("Chromium", "Chromium", "Chromium"),
+    ("Brave", "BraveSoftware/Brave-Browser", "Brave Browser"),
+    ("Vivaldi", "Vivaldi", "Vivaldi"),
+    ("Microsoft Edge", "Microsoft Edge", "Microsoft Edge"),
+    ("Opera", "com.operasoftware.Opera", "Opera"),
+]
+WINDOWS_BROWSERS = [
+    # name, its user data folder (under %LOCALAPPDATA% unless "roaming"), its registry path (None:
+    # it reads Chrome's), its name under "App Paths", where its program may be
+    ("Google Chrome", "Google/Chrome/User Data", r"Software\Google\Chrome", "chrome.exe",
+     ["Google/Chrome/Application/chrome.exe"]),
+    ("Chromium", "Chromium/User Data", r"Software\Chromium", None, ["Chromium/Application/chrome.exe"]),
+    ("Brave", "BraveSoftware/Brave-Browser/User Data", r"Software\BraveSoftware\Brave-Browser", "brave.exe",
+     ["BraveSoftware/Brave-Browser/Application/brave.exe"]),
+    ("Vivaldi", "Vivaldi/User Data", r"Software\Vivaldi", "vivaldi.exe", ["Vivaldi/Application/vivaldi.exe"]),
+    ("Microsoft Edge", "Microsoft/Edge/User Data", r"Software\Microsoft\Edge", "msedge.exe",
+     ["Microsoft/Edge/Application/msedge.exe"]),
+    ("Opera", "roaming:Opera Software/Opera Stable", None, "opera.exe", ["Programs/Opera/opera.exe"]),
+]
+# Every Chromium-based browser on Windows also looks under these, whatever its own name is.
+WINDOWS_SHARED_KEYS = [r"Software\Google\Chrome", r"Software\Chromium", r"Software\Microsoft\Edge"]
+SNAP_BIN = Path("/snap/bin")  # where snaps' programs are: a browser found there is a snap
+# Browsers as Flatpaks keep their folders in ~/.var/app: they are found only to say they can't be used.
+FLATPAK_BROWSERS = {
+    "com.google.Chrome": "Google Chrome", "org.chromium.Chromium": "Chromium",
+    "io.github.ungoogled_software.ungoogled_chromium": "ungoogled-chromium",
+    "com.brave.Browser": "Brave", "com.microsoft.Edge": "Microsoft Edge", "com.vivaldi.Vivaldi": "Vivaldi",
+    "com.opera.Opera": "Opera",
+}
+
+
 def browsers() -> list[dict]:
-    """The Chromium-based browsers this OS may have, each with:
-    name; data (its user data folder: where Linux and macOS keep native hosts, and its profiles);
-    reg (Windows: its registry path); exe (its program, if it's installed)."""
+    """The Chromium-based browsers found on this machine, each as a dict:
+
+        name     what to call it
+        data     its user data folder: where Linux and macOS keep native hosts, and its profiles
+        exe      its program (None: its folder is there, the program wasn't found)
+        reg      Windows: its registry path (None: it reads the shared ones)
+        wm       Linux: what its app windows' names start with (None: not known)
+        sandbox  Linux: "snap" for a confined browser, which can't run the native host
+    """
     home = Path.home()
     found = []
     if WINDOWS:
         local = Path(os.environ.get("LOCALAPPDATA") or home / "AppData" / "Local")
+        roaming = Path(os.environ.get("APPDATA") or home / "AppData" / "Roaming")
         roots = [Path(os.environ[v]) for v in ("PROGRAMFILES", "PROGRAMFILES(X86)") if os.environ.get(v)]
-        table = [
-            ("Google Chrome", local / "Google/Chrome/User Data", r"Software\Google\Chrome",
-             "chrome.exe", ["Google/Chrome/Application/chrome.exe"]),
-            ("Chromium", local / "Chromium/User Data", r"Software\Chromium",
-             None, ["Chromium/Application/chrome.exe"]),
-            ("Brave", local / "BraveSoftware/Brave-Browser/User Data", r"Software\BraveSoftware\Brave-Browser",
-             "brave.exe", ["BraveSoftware/Brave-Browser/Application/brave.exe"]),
-            ("Vivaldi", local / "Vivaldi/User Data", r"Software\Vivaldi",
-             "vivaldi.exe", ["Vivaldi/Application/vivaldi.exe"]),
-            ("Microsoft Edge", local / "Microsoft/Edge/User Data", r"Software\Microsoft\Edge",
-             "msedge.exe", ["Microsoft/Edge/Application/msedge.exe"]),
-        ]
-        for name, data, reg, app_path, rels in table:
+        for name, data, reg, app_path, rels in WINDOWS_BROWSERS:
+            folder = roaming / data[len("roaming:"):] if data.startswith("roaming:") else local / data
             program = windows_app_path(app_path) if app_path else None
             if not program:
                 program = next((str(r / rel) for r in [local, *roots] for rel in rels if (r / rel).is_file()), None)
-            found.append({"name": name, "data": data, "reg": reg, "exe": program})
+            found.append({"name": name, "data": folder, "reg": reg, "exe": program})
     elif MACOS:
         support = home / "Library" / "Application Support"
-        table = [
-            ("Google Chrome", "Google/Chrome", "Google Chrome"),
-            ("Google Chrome Beta", "Google/Chrome Beta", "Google Chrome Beta"),
-            ("Chromium", "Chromium", "Chromium"),
-            ("Brave", "BraveSoftware/Brave-Browser", "Brave Browser"),
-            ("Vivaldi", "Vivaldi", "Vivaldi"),
-            ("Microsoft Edge", "Microsoft Edge", "Microsoft Edge"),
-        ]
-        for name, data, app in table:
+        for name, data, app in MACOS_BROWSERS:
             bundles = [Path("/Applications") / f"{app}.app", home / "Applications" / f"{app}.app"]
             program = next((str(b / "Contents/MacOS" / app) for b in bundles if (b / "Contents/MacOS" / app).is_file()), None)
             found.append({"name": name, "data": support / data, "exe": program})
     else:
         config = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
-        table = [
-            ("Google Chrome", "google-chrome", ["google-chrome-stable", "google-chrome"]),
-            ("Google Chrome Beta", "google-chrome-beta", ["google-chrome-beta"]),
-            ("Chromium", "chromium", ["chromium", "chromium-browser"]),
-            ("Brave", "BraveSoftware/Brave-Browser", ["brave", "brave-browser"]),
-            ("Vivaldi", "vivaldi", ["vivaldi-stable", "vivaldi"]),
-            ("Microsoft Edge", "microsoft-edge", ["microsoft-edge-stable", "microsoft-edge"]),
-        ]
-        for name, data, bins in table:
-            program = next((shutil.which(b) for b in bins if shutil.which(b)), None)
-            found.append({"name": name, "data": config / data, "exe": program})
+        for name, data, programs, wm in LINUX_BROWSERS:
+            program = next((shutil.which(b) for b in programs if shutil.which(b)), None)
+            browser = {"name": name, "data": config / data, "exe": program, "wm": wm, "sandbox": None}
+            if program and Path(program).parent == SNAP_BIN:
+                # a snap keeps its folders to itself, and can't start programs outside it
+                mine = home / "snap" / Path(program).name
+                folders = [mine / "common" / data, mine / "current" / ".config" / data]
+                browser.update(name=f"{name} (snap)", sandbox="snap",
+                               data=next((f for f in folders if f.is_dir()), folders[0]))
+            found.append(browser)
     return [b for b in found if b["data"].is_dir() or b["exe"]]
+
+
+def flatpak_browsers() -> list[str]:
+    """Names of the Chromium-based browsers installed as Flatpaks (Linux)."""
+    if WINDOWS or MACOS:
+        return []
+    apps = Path.home() / ".var" / "app"
+    return [name for app_id, name in FLATPAK_BROWSERS.items() if (apps / app_id).is_dir()]
 
 
 def windows_app_path(program: str) -> str | None:
@@ -330,26 +375,28 @@ def host_launcher() -> Path:
         # Windows starts native hosts through cmd.exe, which reads a .bat in the console's code
         # page: a non-English user name in a path would break it. So the .bat only has paths it
         # works out itself (%~dp0: its own folder), and a Python stub (UTF-8) knows the rest.
-        stub = folder / "minimaltube-host.py"
-        stub.write_text(
+        write_if_changed(
+            folder / "minimaltube-host.py",
             "# Written by MinimalTube's installer: starts the native host from MinimalTube's folder.\n"
             "import runpy, sys\n"
             "sys.dont_write_bytecode = True\n"
             f"HOST = {str(host)!r}\n"
             "sys.argv[0] = HOST\n"
-            "runpy.run_path(HOST, run_name='__main__')\n", encoding="utf-8")
+            "runpy.run_path(HOST, run_name='__main__')\n")
         python = "%~dp0python\\python.exe" if own_python_in_use() else sys.executable.replace("%", "%%")
         bat = folder / "minimaltube-host.bat"
-        bat.write_text(
+        write_if_changed(
+            bat,
             "@echo off\r\n"
             "rem Written by MinimalTube's installer: runs the native host with the server's Python.\r\n"
-            f'"{python}" -X utf8 -B "%~dp0minimaltube-host.py" %*\r\n', encoding="ascii", errors="replace")
+            f'"{python}" -X utf8 -B "%~dp0minimaltube-host.py" %*\r\n', encoding="ascii")
         return bat
     script = folder / "minimaltube-host"
-    script.write_text(
+    write_if_changed(
+        script,
         "#!/bin/sh\n"
         "# Written by MinimalTube's installer: runs the native host with the server's Python.\n"
-        f"exec {shlex.quote(sys.executable)} -X utf8 -B {shlex.quote(str(host))} \"$@\"\n", encoding="utf-8")
+        f"exec {shlex.quote(sys.executable)} -X utf8 -B {shlex.quote(str(host))} \"$@\"\n")
     script.chmod(0o755)
     return script
 
@@ -369,14 +416,17 @@ def register_host(ids: list[str], found: list[dict]) -> None:
         import winreg
 
         path = app_dir() / f"{HOST_NAME}.json"
-        path.write_text(text, encoding="utf-8")
-        for b in found:
+        write_if_changed(path, text)
+        # under each browser's own key, and under the ones every Chromium-based browser reads
+        # (Brave, Vivaldi and Opera look there; a browser installed later finds it there too)
+        keys = dict.fromkeys([b["reg"] for b in found if b.get("reg")] + WINDOWS_SHARED_KEYS)
+        for key in keys:
             try:
-                winreg.SetValue(winreg.HKEY_CURRENT_USER, rf"{b['reg']}\NativeMessagingHosts\{HOST_NAME}",
+                winreg.SetValue(winreg.HKEY_CURRENT_USER, rf"{key}\NativeMessagingHosts\{HOST_NAME}",
                                 winreg.REG_SZ, str(path))
-                say(f"Native host registered for {b['name']}")
             except OSError as e:
-                warn(f"couldn't register the native host for {b['name']}: {e}")
+                warn(f"couldn't register the native host under {key}: {e}")
+        say(f"Native host registered for {', '.join(b['name'] for b in found) or 'Chromium-based browsers'}")
         return
     for b in found:
         if not b["data"].is_dir():
@@ -384,7 +434,7 @@ def register_host(ids: list[str], found: list[dict]) -> None:
         folder = b["data"] / "NativeMessagingHosts"
         try:
             folder.mkdir(parents=True, exist_ok=True)
-            (folder / f"{HOST_NAME}.json").write_text(text, encoding="utf-8")
+            write_if_changed(folder / f"{HOST_NAME}.json", text)
             say(f"Native host registered for {b['name']} ({folder})")
         except OSError as e:
             warn(f"couldn't register the native host for {b['name']}: {e}")
@@ -394,7 +444,7 @@ def register_host(ids: list[str], found: list[dict]) -> None:
 def pick_browser(found: list[dict], ext_id: str) -> dict | None:
     forced = os.environ.get("MINIMALTUBE_BROWSER")
     if forced:
-        return {"name": Path(forced).stem, "exe": forced}
+        return {"name": Path(forced).stem, "exe": forced, "wm": None, "sandbox": None}
     with_exe = [b for b in found if b["exe"]]
     # the browser that already has the extension, else the first one found
     return next((b for b in with_exe if has_extension(b, ext_id)), with_exe[0] if with_exe else None)
@@ -413,23 +463,39 @@ def write_ico(dest: Path) -> None:
 
 
 def launcher_linux(browser: dict, ext_id: str) -> str:
-    (HERE / "minimaltube-launch.sh").unlink(missing_ok=True)  # what older versions generated
     apps = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "applications"
     apps.mkdir(parents=True, exist_ok=True)
     icon = HERE / "icons" / "icon128.png"
+    app_url = f"chrome-extension://{ext_id}/player.html"
+    command = f'"{browser["exe"]}" --app={app_url}'
+    if browser.get("sandbox"):
+        # A confined browser can't run the native host, so the extension can't start the server:
+        # the menu entry starts it (the same host, by hand), then the browser.
+        opener = app_dir() / "minimaltube-open"
+        write_if_changed(
+            opener,
+            "#!/bin/sh\n"
+            "# Written by MinimalTube's installer: starts the server, then the player in the browser\n"
+            "# (a sandboxed browser can't start the server itself).\n"
+            f"{shlex.quote(str(host_launcher()))} --start-server\n"
+            f"exec {shlex.quote(browser['exe'])} --app={app_url}\n")
+        opener.chmod(0o755)
+        command = f'"{opener}"'
     # No --window-size: when this entry is what starts the browser, Chromium gives every window that
     # size instead of the one it saved, and the player would have to resize it on each open.
-    (apps / "minimaltube.desktop").write_text(
-        "[Desktop Entry]\n"
-        "Type=Application\n"
-        "Name=MinimalTube\n"
-        "Comment=Minimal YouTube player\n"
-        f'Exec="{browser["exe"]}" --app=chrome-extension://{ext_id}/player.html\n'
-        f"Icon={icon if icon.is_file() else 'video-x-generic'}\n"
-        "Terminal=false\n"
-        "Categories=AudioVideo;Video;Player;\n"
-        f"StartupWMClass=chrome-{ext_id}__player.html-Default\n", encoding="utf-8")
-    for refresh in (["update-desktop-database", str(apps)], ["kbuildsycoca6"]):
+    entry = ("[Desktop Entry]\n"
+             "Type=Application\n"
+             "Name=MinimalTube\n"
+             "Comment=Minimal YouTube player\n"
+             f"Exec={command}\n"
+             f"Icon={icon if icon.is_file() else 'video-x-generic'}\n"
+             "Terminal=false\n"
+             "Categories=AudioVideo;Video;Player;\n")
+    if browser.get("wm"):
+        # how the desktop matches the player's window to this entry (its icon in the task bar)
+        entry += f"StartupWMClass={browser['wm']}-{ext_id}__player.html-Default\n"
+    write_if_changed(apps / "minimaltube.desktop", entry)
+    for refresh in (["update-desktop-database", str(apps)], ["kbuildsycoca6"], ["kbuildsycoca5"]):
         if shutil.which(refresh[0]):
             subprocess.run(refresh, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return "your application menu"
@@ -523,9 +589,18 @@ def main(argv: list[str]) -> int:
     tools()
     found = browsers()
     if not found:
-        warn("no Chromium-based browser found (Chrome, Chromium, Brave, Vivaldi, Edge).")
+        warn("no Chromium-based browser found (Chrome, Chromium, Brave, Vivaldi, Edge, Opera).")
     register_host(ids, found)
     app_launcher(found, ids[0])
+    sandboxed = [b["name"] for b in found if b.get("sandbox")]
+    if sandboxed:
+        say(f"Note: {', '.join(sandboxed)} runs in a sandbox and can't start MinimalTube's server by itself. "
+            "Start MinimalTube from your application menu (that entry starts the server first), "
+            "or use a browser installed as a normal package.")
+    flatpaks = flatpak_browsers()
+    if flatpaks:
+        say(f"Note: found as Flatpak: {', '.join(flatpaks)}. A Flatpak browser can't start MinimalTube's "
+            "server, and may not be allowed to read this folder: use one installed as a normal package.")
     say()
     if problems:
         say("Finished, with warnings (above).")

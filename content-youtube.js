@@ -1,4 +1,4 @@
-// MinimalTube content script (runs on youtube.com)
+// MinimalTube content script (runs on youtube.com, after js/common.js)
 //  - watch page: a small button on the player that opens the video (and the playlist shown in
 //    the side panel, if any) in MinimalTube
 //  - playlist page: a button in the playlist header that opens every video of the playlist as the
@@ -11,7 +11,6 @@
   const PLAYER_BTN_ID = "minimaltube-overlay-btn";
   const PLAYLIST_BTN_ID = "minimaltube-playlist-btn";
   const NOTICE_ID = "minimaltube-notice";
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let busy = false;
 
   /* ---------------------------------------------------------------- notice */
@@ -220,7 +219,7 @@
     else if (res.ok === false)
       notice(
         res.error ||
-          `MinimalTube server isn't running (${res.serverBase}) and couldn't be started. Run MinimalTube's installer again (${/Windows/.test(navigator.userAgent) ? "install.cmd" : /Mac OS X|Macintosh/.test(navigator.userAgent) ? "install.command" : "./install.sh"}).`,
+          `MinimalTube server isn't running (${res.serverBase}) and couldn't be started. Run MinimalTube's installer again (${INSTALLER}).`,
       );
     else return false;
     return true;
@@ -445,37 +444,21 @@
   /* ------------------------------------------- videos open in MinimalTube */
   // With "Open YouTube videos in MinimalTube" on, a click on a video link here opens it in the
   // app (playlists and channels stay on YouTube): YouTube changes pages without loading them,
-  // so the redirect in background.js (same links) never sees these. Ctrl/Shift/middle clicks
+  // so the redirect in background/links.js (same links) never sees these. Ctrl/Shift/middle clicks
   // load a page, so that catches them. Links into the video on this page (timestamps) stay with YouTube.
-  const APP_LINK_RE = new RegExp(
-    [
-      String.raw`^https?://(?:(?:www|m|music)\.)?youtube\.com/(?:watch\?(?:.*&)?v=[\w-]{11}|(?:shorts|live|embed|v)/[\w-]{11})`,
-      String.raw`^https?://youtu\.be/[\w-]{11}`,
-    ].join("|"),
-    "i",
-  );
   let linksToApp = false;
   chrome.storage.local.get(["openYouTubeLinks"], (s) => (linksToApp = s.openYouTubeLinks === true));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.openYouTubeLinks) linksToApp = changes.openYouTubeLinks.newValue === true;
   });
-  const linkVideoId = (href) => {
-    try {
-      const u = new URL(href);
-      return u.searchParams.get("v") || (u.pathname.match(/^\/(?:shorts|live)\/([\w-]{11})/) || [])[1] || null;
-    } catch {
-      return null;
-    }
-  };
   window.addEventListener(
     "click",
     async (event) => {
       if (!linksToApp || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
         return;
       const a = event.composedPath().find((el) => el instanceof HTMLAnchorElement && el.href);
-      if (!a || !APP_LINK_RE.test(a.href)) return;
-      const id = linkVideoId(a.href);
-      if (id && id === linkVideoId(location.href)) return;
+      const id = a && youTubeIds(a.href).videoId;
+      if (!id || id === youTubeIds(location.href).videoId) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       const res = await send({ type: "minimaltube-open-link", url: a.href });

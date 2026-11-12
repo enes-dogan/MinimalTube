@@ -19,7 +19,7 @@ const SHORTCUT_LIST = [
   [["Shift", "S / P / D"], "Subscriptions, Playlists, Downloads"],
   [["T"], "Queue & downloads panel"],
   [[","], "Settings"],
-  [["Ctrl", "V"], "Paste a YouTube link: it goes into the queue"],
+  [PASTE_KEYS, "Paste a YouTube link: it goes into the queue"],
   [["C"], "Clear the queue (while that panel is open)"],
   [["Shift", "N"], "Next video"],
   [["Shift", "B"], "Previous video"],
@@ -60,12 +60,10 @@ function renderShortcutHelp() {
   const box = overlay.getBoundingClientRect();
   const controlsTop = controls.getBoundingClientRect().top - box.top;
   const add = (cls, style, html = "") => {
-    const el = document.createElement("div");
-    el.className = cls;
-    Object.assign(el.style, style);
-    el.innerHTML = html;
-    overlay.appendChild(el);
-    return el;
+    const node = overlay.appendChild(el("div", cls));
+    Object.assign(node.style, style);
+    node.innerHTML = html;
+    return node;
   };
   SHORTCUT_CALLOUTS.forEach((c) => {
     const target = c.el();
@@ -208,14 +206,14 @@ document.getElementById("shortcutsBtn").addEventListener("click", (event) => {
  * opens it again.
  * ===================================================================== */
 const WELCOME_FEATURES = [
-  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock</b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link anywhere in the app (<b>Ctrl+V</b>)."],
+  ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock</b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link anywhere in the app (<b>" + PASTE_KEYS.join("+") + "</b>)."],
   ["◉", "Your subscriptions", "Add a channel on the Subscriptions tab with its @handle or link. New uploads from all of them arrive in one feed."],
   ["☰", "Queue and playlists", "⋮ → <b>Add next to queue</b> lines videos up; drag to reorder. Save the queue as a playlist with <b>+</b>, or any video with ⋮ → <b>Save to playlist</b>."],
-  ["⟳", "Synced with YouTube", "Save one of your own playlists from its page on youtube.com and it stays two-way synced: changes on either side show up on the other. Finished videos show up at your <b>YouTube history</b> (Settings)."],
+  ["⟳", "Synced with YouTube", "Save one of your own playlists from its page on youtube.com and it stays two-way synced: changes on either side show up on the other. Finished videos show up in your <b>YouTube history</b> (Settings)."],
   ["⬇", "Downloads", "Everything you downloaded plays offline. Delete a file, a playlist or remove a video from a list, or clear the queue; the bar in the corner (or <b>U</b>) undoes it for 5 seconds."],
   ["⚡", "Instant start", "Settings → <b>Stream while downloading</b> starts videos in a second while they download; <b>Stream only</b> just streams, at up to 1080p, without keeping a copy."],
-  ["⏱", "Picks up where you left off", "Videos resume where you stopped, placback speed and volume is rememmbered too. Captions and chapters come along."],
-  ["⌨", "Made for the keyboard", "Entire app can be controlled with keyboard, arrow keys and Enter; every ⋮ menu has letter shortcuts keys."],
+  ["⏱", "Picks up where you left off", "Videos resume where you stopped; playback speed and volume are remembered too. Captions and chapters come along."],
+  ["⌨", "Made for the keyboard", "The whole app works from the keyboard: Tab, the arrow keys and Enter; every ⋮ menu has letter keys, and right-click opens the same menu."],
 ];
 let welcomeEl = null;
 function showWelcome({ then } = {}) {
@@ -302,6 +300,3 @@ document.getElementById("welcomeBtn").addEventListener("click", (event) => {
   closeSettings();
   showWelcome();
 });
-
-prevBtn.addEventListener("click", () => skipVideo(-1));
-nextBtn.addEventListener("click", () => skipVideo(1));

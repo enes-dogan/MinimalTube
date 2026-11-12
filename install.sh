@@ -5,8 +5,9 @@
 # It finds the Python the server will run on, then install.py does the rest with it (the server's
 # packages and its own yt-dlp; ffmpeg and deno when the system has none; the native host the
 # extension starts the server through; MinimalTube in the app menu / Applications):
-#   - Linux: the system python3 when it already has Flask (as on Arch with python-flask);
-#     otherwise MinimalTube's own Python
+#   - Linux: the system python3 when it already has everything the server needs (Flask,
+#     Flask-CORS and pip, as with your distribution's packages for them); otherwise MinimalTube's
+#     own Python. Either way nothing is installed system-wide and nothing needs sudo.
 #   - macOS: MinimalTube's own Python (the one macOS comes with is too old)
 # MinimalTube's own Python is a standalone CPython build (python-build-standalone) in
 # MinimalTube's app folder: no admin rights, nothing installed system-wide.
@@ -108,7 +109,7 @@ fetch_own_python() {
 }
 
 if [ "$OS" = Linux ] && [ -z "${MINIMALTUBE_OWN_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1 \
-  && python3 -c 'import sys, flask, flask_cors; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
+  && python3 -c 'import sys, flask, flask_cors, pip; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
   PY="$(command -v python3)"
 else
   if ! "$OWN_PY" -c 'import sys' >/dev/null 2>&1; then

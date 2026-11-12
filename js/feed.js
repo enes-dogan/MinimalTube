@@ -1,18 +1,33 @@
 /* MinimalTube player - Subscriptions and the feed: channels, each channel's remembered videos, the merged feed.
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
+const FEED_LIMIT = 24, // videos per "load more"
+  FEED_BG_REFRESH_MS = 2 * 60 * 1000, // a channel fetched longer ago is asked again when shown
+  FEED_CHANNEL_MAX = 36, // videos remembered per channel
+  FEED_CHANNELS_KEPT = 30; // channels remembered
+let subscriptions = [],
+  subsLoaded = false;
+// The feed on screen: which view (`key`: "all" / "ch:<id>"), its videos (newest first), and per
+// channel the upload time they're complete down to (`bounds`; 0 = all of its videos).
+const feedState = {
+  key: null,
+  channels: "",
+  items: [],
+  bounds: new Map(),
+  offline: false,
+  loading: false,
+  failed: false,
+  loaded: false,
+  epoch: 0,
+  serverError: null,
+};
+
+
 /* ---------- subscriptions ---------- */
 // Until the server answers (it may still be starting), the feed uses the subscriptions as last seen.
 async function loadSubscriptions() {
   try {
-    const res = await fetch(`${serverBase}/subscriptions`);
-    if (!res.ok)
-      throw new Error(
-        res.status === 404
-          ? "the running server is outdated - restart server.py"
-          : `server returned ${res.status}`,
-      );
-    const data = await res.json();
+    const data = await api("/subscriptions");
     subscriptions = Array.isArray(data.subscriptions) ? data.subscriptions : [];
     subsImporting = data.importing || 0;
     subsLoaded = true;
@@ -49,6 +64,13 @@ function clearChannelFocus() {
   showFeed();
 }
 
+function chipButton(text, title, onClick) {
+  const button = el("button", null, text);
+  button.type = "button";
+  button.title = title;
+  button.addEventListener("click", onClick);
+  return button;
+}
 function renderSubFocus() {
   subFocus.innerHTML = "";
   const ch =
@@ -58,30 +80,13 @@ function renderSubFocus() {
       : subscriptions.find((channel) => channel.id === selectedChannel));
   subFocus.classList.toggle("show", !!ch);
   if (!ch) return;
-  const label = document.createElement("span");
-  label.textContent = "Showing only";
-  const chip = document.createElement("span");
-  chip.className = "subChip selected";
-  const name = document.createElement("span");
-  name.className = "subChipName";
-  name.textContent = ch.name;
+  const chip = el("span", "subChip selected"),
+    name = chip.appendChild(el("span", "subChipName", ch.name));
   name.title = ch.handle || ch.url || ch.name;
-  chip.appendChild(name);
-  if (tempChannel && tempChannel.id === ch.id) {
-    const add = document.createElement("button");
-    add.type = "button";
-    add.title = `Subscribe to ${ch.name}`;
-    add.textContent = "+";
-    add.addEventListener("click", subscribeTempChannel);
-    chip.appendChild(add);
-  }
-  const clear = document.createElement("button");
-  clear.type = "button";
-  clear.title = "Show all channels again";
-  clear.textContent = "×";
-  clear.addEventListener("click", clearChannelFocus);
-  chip.appendChild(clear);
-  subFocus.append(label, chip);
+  if (tempChannel && tempChannel.id === ch.id)
+    chip.appendChild(chipButton("+", `Subscribe to ${ch.name}`, subscribeTempChannel));
+  chip.appendChild(chipButton("×", "Show all channels again", clearChannelFocus));
+  subFocus.append(el("span", null, "Showing only"), chip);
   const subscribers = (channelFeeds.get(ch.id) || {}).subscribers;
   if (subscribers) subFocus.appendChild(el("span", "subCount", fmtCount(subscribers, "subscriber")));
 }
@@ -136,33 +141,6 @@ function openChannel(ch) {
   renderSubChips();
   showFeed();
 }
-// "Go to <channel>" for videos that only carry an id: the server knows the uploader from the
-// saved info, or looks it up once.
-async function goToChannel(videoId, known) {
-  if (known && known.channel_id)
-    return openChannel({ id: known.channel_id, name: known.channel });
-  notify("Looking up the channel…", false, 2000);
-  try {
-    const data = await api(`/channel-of/${encodeURIComponent(videoId)}`);
-    if (!data.channel_id) throw new Error("no channel found");
-    if (known) {
-      known.channel = data.channel;
-      known.channel_id = data.channel_id;
-    }
-    openChannel({ id: data.channel_id, name: data.channel, handle: data.handle });
-  } catch (err) {
-    notify(`Couldn't find the channel: ${netMessage(firstLine(err.message))}`, true, 4000);
-  }
-}
-function channelEntry(videoId, known) {
-  if (!videoId) return null;
-  return {
-    label: known && known.channel ? `Go to ${known.channel}` : "Go to channel",
-    key: "G",
-    icon: ICON_CHANNEL,
-    onClick: () => goToChannel(videoId, known),
-  };
-}
 async function subscribeTempChannel() {
   const ch = tempChannel;
   if (!ch) return;
@@ -199,27 +177,16 @@ function renderSubChips() {
       }),
     )
     .forEach((ch) => {
-      const chip = document.createElement("span");
-      const selected = ch.id === selectedChannel;
-      chip.className = "subChip" + (selected ? " selected" : "");
-      const name = document.createElement("span");
-      name.className = "subChipName";
-      name.textContent = ch.name;
+      const selected = ch.id === selectedChannel,
+        chip = el("span", "subChip" + (selected ? " selected" : "")),
+        name = chip.appendChild(el("span", "subChipName", ch.name));
       chip.setAttribute("role", "button");
       chip.setAttribute("aria-pressed", String(selected));
       name.title =
         (ch.handle || ch.url || ch.name) +
-        (selected
-          ? " - click to show all channels"
-          : " - click to show only this channel");
+        (selected ? " - click to show all channels" : " - click to show only this channel");
       name.addEventListener("click", () => toggleChannelFilter(ch));
-      chip.appendChild(name);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.title = `Unsubscribe from ${ch.name}`;
-      btn.textContent = "×";
-      btn.addEventListener("click", () => confirmUnsubscribe(ch));
-      chip.appendChild(btn);
+      chip.appendChild(chipButton("×", `Unsubscribe from ${ch.name}`, () => confirmUnsubscribe(ch)));
       subChips.appendChild(chip);
     });
   const none = !subscriptions.length;
@@ -285,22 +252,22 @@ async function removeSubscription(ch) {
 async function importSubscriptions() {
   if (subImportBtn.disabled) return;
   subImportBtn.disabled = true;
-  notify("Reading your subscriptions on YouTube…", false, 60e3);
+  notify("Reading your subscriptions on YouTube…", false, 60000);
   try {
     const res = await chrome.runtime.sendMessage({ type: "minimaltube-import-subscriptions" });
-    if (res && res.fromPage) notify("Reading them from YouTube's page in a new tab…", false, 60e3);
+    if (res && res.fromPage) notify("Reading them from YouTube's page in a new tab…", false, 60000);
     else subscriptionsImported(res);
   } catch (err) {
-    notify(`Couldn't import your subscriptions: ${firstLine(err.message)}`, true, 6e3);
+    notify(`Couldn't import your subscriptions: ${firstLine(err.message)}`, true, 6000);
   } finally {
     subImportBtn.disabled = false;
   }
 }
 function subscriptionsImported(res) {
   if (!res || !res.ok)
-    return notify(`Couldn't import your subscriptions: ${firstLine((res && res.error) || "no answer")}`, true, 6e3);
+    return notify(`Couldn't import your subscriptions: ${firstLine((res && res.error) || "no answer")}`, true, 6000);
   const parts = [`${res.added} new`, res.already && `${res.already} already here`, res.resolving && `${res.resolving} being looked up`];
-  notify(`Imported your subscriptions: ${parts.filter(Boolean).join(", ")}`, false, 5e3);
+  notify(`Imported your subscriptions: ${parts.filter(Boolean).join(", ")}`, false, 5000);
   selectedChannel = null;
   tempChannel = null;
   subChipsOpen = false;
@@ -353,7 +320,6 @@ const feedMemoryReady = new Promise((resolve) =>
     resolve();
   }),
 );
-chrome.storage.local.remove(["feedSnapshot", "feedChannels"]); // the memory's earlier format
 // Saved a moment after the last change, and right away when the window is hidden or closed.
 let feedSaveTimer = 0;
 function saveFeedMemory() {
@@ -668,8 +634,7 @@ function renderFeed(marking = false) {
 function setFeedStatus(text, retry = false) {
   feedStatus.textContent = text || "";
   if (retry) {
-    const link = document.createElement("a");
-    link.textContent = " Retry";
+    const link = el("a", null, " Retry");
     link.addEventListener("click", () => {
       feedState.failed = false;
       loadMoreFeed();
@@ -711,15 +676,14 @@ whenNetChanges((offline) => {
   if (feedState.loaded && document.body.classList.contains("browsing") && browseTab === "subs")
     refreshFeed();
 });
-const feedNewPill = document.createElement("button");
+const feedNewPill = el("button", "btn btn-tint");
 feedNewPill.type = "button";
 feedNewPill.id = "feedNewPill";
-feedNewPill.className = "btn btn-tint";
 byId("subsBar").append(feedNewPill);
 let feedNewCount = 0;
 function showFeedNewPill(count) {
   feedNewCount += count;
-  feedNewPill.textContent = `↑ ${feedNewCount} new video${feedNewCount === 1 ? "" : "s"}`;
+  feedNewPill.textContent = `↑ ${plural(feedNewCount, "new video")}`;
   feedNewPill.classList.add("show");
 }
 function hideFeedNewPill() {

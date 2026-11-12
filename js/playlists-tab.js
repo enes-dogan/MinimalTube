@@ -1,167 +1,6 @@
-/* MinimalTube player - The Playlists tab: reordering card grids, a playlist's page and YouTube playlist sync.
+/* MinimalTube player - The Playlists tab: the playlists' cards, a playlist's page and YouTube playlist sync.
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
-/* ---------- Playlists tab ---------- */
-/* ---- Reorder a card grid (saved playlists, a playlist's videos, downloads): press and hold
- * a card (or drag it), move it over another spot and let go. The cards in between shift by
- * one place. Works across rows. ---- */
-function makeGridSortable(grid, cardSelector, canSort, onMove) {
-  grid.addEventListener("dragstart", (event) => event.preventDefault());
-  grid.addEventListener(
-    "click",
-    (event) => {
-      if (grid._dragged) {
-        event.stopPropagation();
-        event.preventDefault();
-      }
-    },
-    true,
-  );
-  grid.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || event.target.closest("button")) return;
-    const card = event.target.closest(cardSelector);
-    if (!card || card.parentElement !== grid || !canSort()) return;
-    const startX = event.clientX,
-      startY = event.clientY;
-    let started = false,
-      timer = setTimeout(begin, 220);
-    function cleanup() {
-      clearTimeout(timer);
-      document.removeEventListener("pointermove", pre);
-      document.removeEventListener("pointerup", cleanup);
-      document.removeEventListener("pointercancel", cleanup);
-    }
-    function pre(ev) {
-      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) begin();
-    }
-    function begin() {
-      if (started) return;
-      started = true;
-      clearTimeout(timer);
-      document.removeEventListener("pointermove", pre);
-      document.removeEventListener("pointerup", cleanup);
-      document.removeEventListener("pointercancel", cleanup);
-      startGridDrag(grid, cardSelector, card, startX, startY, onMove);
-    }
-    document.addEventListener("pointermove", pre);
-    document.addEventListener("pointerup", cleanup);
-    document.addEventListener("pointercancel", cleanup);
-  });
-}
-function startGridDrag(grid, cardSelector, card, startX, startY, onMove) {
-  closeBpMenu();
-  const cards = Array.from(grid.children).filter((other) =>
-      other.matches(cardSelector),
-    ),
-    from = cards.indexOf(card);
-  if (from < 0) return;
-  const sc = browseBody;
-  // positions in content coordinates, so scrolling while dragging keeps working
-  const slots = cards.map((other) => {
-    const rect = other.getBoundingClientRect();
-    return {
-      x: rect.left + sc.scrollLeft,
-      y: rect.top + sc.scrollTop,
-      w: rect.width,
-      h: rect.height,
-    };
-  });
-  const startCX = startX + sc.scrollLeft,
-    startCY = startY + sc.scrollTop;
-  let px = startX,
-    py = startY,
-    to = from,
-    raf = 0,
-    done = false;
-  sortDragging = true;
-  grid.classList.add("sorting");
-  card.classList.add("dragging");
-  document.body.style.cursor = "grabbing";
-  function update() {
-    const cx = px + sc.scrollLeft,
-      cy = py + sc.scrollTop,
-      dx = cx - startCX,
-      dy = cy - startCY;
-    card.style.transform = `translate(${dx}px, ${dy}px) scale(1.03)`;
-    // the slot whose centre is nearest to the card's centre
-    const mx = slots[from].x + slots[from].w / 2 + dx,
-      my = slots[from].y + slots[from].h / 2 + dy;
-    let best = from,
-      bestD = Infinity;
-    slots.forEach((slot, idx) => {
-      const value = Math.hypot(
-        slot.x + slot.w / 2 - mx,
-        slot.y + slot.h / 2 - my,
-      );
-      if (value < bestD) {
-        bestD = value;
-        best = idx;
-      }
-    });
-    to = best;
-    cards.forEach((other, idx) => {
-      if (idx === from) return;
-      let target = idx;
-      if (to > from && idx > from && idx <= to) target = idx - 1;
-      else if (to < from && idx >= to && idx < from) target = idx + 1;
-      other.style.transform =
-        target === idx
-          ? ""
-          : `translate(${slots[target].x - slots[idx].x}px, ${slots[target].y - slots[idx].y}px)`;
-    });
-  }
-  function autoScroll() {
-    if (done) return;
-    const rect = sc.getBoundingClientRect(),
-      edge = 60;
-    let delta = 0;
-    if (py < rect.top + edge) delta = -Math.ceil((rect.top + edge - py) / 4);
-    else if (py > rect.bottom - edge)
-      delta = Math.ceil((py - (rect.bottom - edge)) / 4);
-    if (delta) {
-      sc.scrollTop += Math.max(-20, Math.min(20, delta));
-      update();
-    }
-    raf = requestAnimationFrame(autoScroll);
-  }
-  function finish(commit) {
-    if (done) return;
-    done = true;
-    cancelAnimationFrame(raf);
-    document.removeEventListener("pointermove", onPointerMove);
-    document.removeEventListener("pointerup", onUp);
-    document.removeEventListener("pointercancel", onCancel);
-    document.removeEventListener("keydown", onKey, true);
-    cards.forEach((other) => (other.style.transform = ""));
-    card.classList.remove("dragging");
-    grid.classList.remove("sorting");
-    document.body.style.cursor = "";
-    sortDragging = false;
-    grid._dragged = true;
-    setTimeout(() => (grid._dragged = false), 0);
-    if (commit && to !== from) onMove(from, to);
-  }
-  const onPointerMove = (event) => {
-    px = event.clientX;
-    py = event.clientY;
-    update();
-  };
-  const onUp = () => finish(true);
-  const onCancel = () => finish(false);
-  const onKey = (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      finish(false);
-    }
-  };
-  document.addEventListener("pointermove", onPointerMove);
-  document.addEventListener("pointerup", onUp);
-  document.addEventListener("pointercancel", onCancel);
-  document.addEventListener("keydown", onKey, true);
-  raf = requestAnimationFrame(autoScroll);
-  update();
-}
 function movePlaylist(from, to) {
   const [moved] = savedPlaylists.splice(from, 1);
   savedPlaylists.splice(to, 0, moved);
@@ -178,22 +17,15 @@ function movePlaylist(from, to) {
       ),
     );
 }
-makeGridSortable(
-  plGrid,
-  ".vCard[data-plid]",
-  () => savedPlaylists.length > 1,
-  movePlaylist,
-);
+makeSortable(plGrid, { item: ".vCard[data-plid]", scroller: browseBody, canSort: () => savedPlaylists.length > 1, onMove: movePlaylist });
 
 function renderPlaylistCards() {
   renderPlaylistPage();
   plGrid.innerHTML = "";
   if (!savedPlaylists.length) {
-    const empty = document.createElement("div");
-    empty.className = "bpEmpty";
-    empty.textContent =
-      "No saved playlists yet. Use + in the queue panel to save the current queue, or ⋮ on any video → Save to playlist.";
-    plGrid.appendChild(empty);
+    plGrid.appendChild(
+      el("div", "bpEmpty", "No saved playlists yet. Use + in the queue panel to save the current queue, or ⋮ on any video → Save to playlist."),
+    );
     return;
   }
   savedPlaylists.forEach((pl) => {
@@ -209,7 +41,7 @@ function renderPlaylistCards() {
     const card = makeCard({
       thumb: first && `${serverBase}/thumb/${first.id}`,
       fallback: first && first.thumbnail,
-      badge: `${count} video${count === 1 ? "" : "s"}`,
+      badge: plural(count, "video"),
       title: pl.name,
       lines: [sub],
       open: () => openPlaylistPage(pl.id),
@@ -283,23 +115,17 @@ function renderPlaylistPage() {
   if (!pl) openPlaylistId = null;
   plView.classList.toggle("detail", !!openPlaylistId);
   if (!pl) return;
-  if (bpMenuAnchor && plItemsGrid.contains(bpMenuAnchor)) closeBpMenu();
+  if (bpMenu.owner && plItemsGrid.contains(bpMenu.owner)) closeBpMenu();
   const items = pl.items || [],
     dl = items.filter((item) => item.downloaded).length;
   plHeadTitle.textContent = pl.name;
   plHeadTitle.title = pl.name;
-  plHeadSub.textContent = `${items.length} video${
-    items.length === 1 ? "" : "s"
-  } · ${dl} downloaded`;
+  plHeadSub.textContent = `${plural(items.length, "video")} · ${dl} downloaded`;
   if (pl.yt) plHeadSub.appendChild(makeYtSyncTag());
   plPlayAll.disabled = !items.length;
   plItemsGrid.innerHTML = "";
   if (!items.length) {
-    const empty = document.createElement("div");
-    empty.className = "bpEmpty";
-    empty.textContent =
-      "This playlist is empty. Use ⋮ on any video → Save to playlist.";
-    plItemsGrid.appendChild(empty);
+    plItemsGrid.appendChild(el("div", "bpEmpty", "This playlist is empty. Use ⋮ on any video → Save to playlist."));
     return;
   }
   items.forEach((item, idx) =>
@@ -365,7 +191,7 @@ function makePlaylistItemCard(pl, item, idx) {
       },
       addNextEntry(item),
       channelEntry(item.id, item),
-      downloadEntryFor(item),
+      downloadEntry(item),
       {
         separator: true,
       },
@@ -447,27 +273,19 @@ function removeFromPlaylist(pl, item) {
     },
   });
 }
-makeGridSortable(
-  plItemsGrid,
-  ".vCard[data-vid]",
-  () => {
-    const pl = openPlaylist();
-    return !!pl && (pl.items || []).length > 1;
-  },
-  movePlaylistItem,
-);
-const ICON_SYNC =
-  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>';
-const ICON_UNLINK =
-  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1 0 1.43-.98 2.63-2.31 2.98l1.46 1.46C20.88 15.61 22 13.95 22 12c0-2.76-2.24-5-5-5zm-1 4h-2.19l2 2H16v-2zM2 4.27l3.11 3.11A4.99 4.99 0 0 0 2 12c0 2.76 2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1 0-1.59 1.21-2.9 2.76-3.07L8.73 11H8v2h2.73L13 15.27V17h1.73l4.01 4L20 19.74 3.27 3 2 4.27z"/></svg>';
+makeSortable(plItemsGrid, {
+  item: ".vCard[data-vid]",
+  scroller: browseBody,
+  canSort: () => ((openPlaylist() || {}).items || []).length > 1,
+  onMove: movePlaylistItem,
+});
 const YT_SYNC_EVERY_MS = 10 * 60 * 1000;
 const ytSyncTimers = new Map();
 const isYtLinked = (id) =>
   savedPlaylists.some((playlist) => playlist.id === id && playlist.yt);
 
 function makeYtSyncTag() {
-  const tag = document.createElement("span");
-  tag.className = "ytSyncTag";
+  const tag = el("span", "ytSyncTag");
   tag.title = "Kept in sync with the playlist on your YouTube account";
   tag.innerHTML = ICON_SYNC;
   tag.append("YouTube");
@@ -497,14 +315,9 @@ function linkYouTubePlaylist(playlistId, listId, pendingIds) {
         );
         return;
       }
-      if (
-        queue &&
-        !queue.playlistId &&
-        queue.items.map(itemVideoId).join() === pendingIds
-      ) {
-        queue.playlistId = playlistId;
-        linkedPlaylistKey = playlistSyncKey(playlistId, queue.items);
-      }
+      // the queue it was saved from is that playlist from now on
+      if (queue && !queue.playlistId && queue.items.map(itemVideoId).join() === pendingIds)
+        linkQueueToPlaylist(playlistId);
       followSyncedPlaylist(playlistId);
     },
   );

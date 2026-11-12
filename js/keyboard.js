@@ -1,4 +1,5 @@
-/* MinimalTube player - Keyboard: lists (makeRovingList), skip link, Shift+N / Shift+B, the mini player keys.
+/* MinimalTube player - The keyboard: moving through lists (makeRovingList), inside the ⋮ menus, the skip link, and
+ * the keys of the player and the app.
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
 /* =====================================================================
@@ -79,7 +80,7 @@ function makeRovingList(list, { item, primary, onDelete }) {
   function activate(el) {
     (primary && el.querySelector(primary) || el).click();
   }
-  function openMenu(el) {
+  function openItemMenu(el) {
     const btn = el.querySelector(".vMenuBtn, .plMenuBtn");
     if (!btn || !btn._openMenu) return;
     menuReturn = { restore: () => focusItem(current) };
@@ -102,7 +103,7 @@ function makeRovingList(list, { item, primary, onDelete }) {
     else if (event.key === "Home") focusItem(all[0], true);
     else if (event.key === "End") focusItem(all[all.length - 1], true);
     else if (event.key === "Enter") activate(el);
-    else if (menuKey) openMenu(el);
+    else if (menuKey) openItemMenu(el);
     else if (event.key === "Delete" && onDelete) onDelete(el);
     else return;
     event.preventDefault();
@@ -241,57 +242,68 @@ skipLink.addEventListener("focus", () => {
 skipLink.addEventListener("click", () => skipTarget()[1].focus());
 
 /* =====================================================================
- * Keyboard: Shift+N next video, Shift+B previous video, I mini player.
- * Close button of the mini player.
+ * Keys of the player (Space, arrows, F, M, C, digits, [ ] \) and of the app (Shift+S / P / D,
+ * Shift+N / B, I, X, T, Q, D, C and ","). The ⋮ menus, dialogs and the Undo bar catch their own
+ * letters first.
  * ===================================================================== */
-// Mirror of resolveNext.
-function resolvePrev() {
-  if (playSource === "detour") return resolveNext(); // either way: back to the playlist
-  if (playSource === "library") {
-    const index = library.findIndex((entry) => entry.id === currentVideoId),
-      prev = index > 0 ? library[index - 1] : null;
-    return prev
-      ? {
-          title: prev.title || "Previous video",
-          play: () => playLibraryEntry(prev),
-        }
-      : null;
-  }
-  if (!queue || queueIndex < 1) return null;
-  const prev = queue.items[queueIndex - 1];
-  if (!prev) return null;
-  return {
-    title: prev.title || prev.url,
-    play: () => {
-      const idx = queue ? queue.items.indexOf(prev) : -1;
-      if (idx < 0) return;
-      playSource = "queue";
-      queueIndex = idx;
-      markActiveQueueRow();
-      scrollActiveQueueRowIntoView();
-      playVideo(prev.url);
-      prefetchNextInQueue();
-      saveQueue();
-    },
+document.addEventListener("keydown", (event) => {
+  // in the Settings card Space flips the focused switch, it doesn't play / pause
+  if (event.ctrlKey || event.metaKey || event.altKey || settingsPanel.contains(event.target)) return;
+  if (isTypingTarget(event.target) || !hasVideoLoaded()) return;
+  const seekBy = (seconds) => {
+    video.currentTime = Math.min(video.duration || Infinity, Math.max(0, video.currentTime + seconds));
+    if (isFinite(video.duration)) animateSeekTo((video.currentTime / video.duration) * 100);
   };
-}
-function skipVideo(direction) {
-  cancelUpNext();
-  const target = direction > 0 ? resolveNext() : resolvePrev();
-  if (!target)
-    return notify(
-      direction > 0 ? "No next video" : "No previous video",
-      false,
-      1800,
-    );
-  notify(
-    `${direction > 0 ? "Next" : "Previous"}: ${target.title}`,
-    false,
-    1800,
-  );
-  target.play();
-}
-
+  if (event.code === "Space") {
+    if (!event.repeat) togglePlayPause();
+  } else if (event.code === "ArrowLeft") seekBy(-5);
+  else if (event.code === "ArrowRight") seekBy(5);
+  else if (event.code === "KeyF") {
+    if (!event.repeat) toggleFullscreen();
+  } else if (event.code === "KeyM") {
+    if (!event.repeat) toggleMute();
+  } else if (event.code === "KeyC" && !queuePanel.classList.contains("open")) {
+    // with the side panel open, C is Clear queue (below)
+    if (!event.repeat) toggleCaptions();
+  } else if (/^(Digit|Numpad)[0-9]$/.test(event.code) && !event.shiftKey) {
+    const tenth = Number(event.code.slice(-1));
+    if (isFinite(video.duration) && video.duration > 0) {
+      video.currentTime = tenth ? (video.duration * tenth) / 10 : video.duration;
+      animateSeekTo(tenth ? tenth * 10 : 100);
+    }
+  } else if ((event.code === "ArrowUp" || event.code === "ArrowDown") && !document.body.classList.contains("browsing")) {
+    const up = event.code === "ArrowUp";
+    if (up && video.muted) video.muted = false;
+    setVolume(video.volume + (up ? 0.05 : -0.05));
+    flashText(`${Math.round(video.volume * 100)}%`);
+  } else return;
+  event.preventDefault();
+});
+document.addEventListener("keyup", (event) => {
+  if (
+    event.code === "Space" &&
+    !isTypingTarget(event.target) &&
+    !settingsPanel.contains(event.target) &&
+    hasVideoLoaded()
+  )
+    event.preventDefault();
+});
+document.addEventListener("keydown", (event) => {
+  const down = event.code === "BracketLeft" || event.key === "[",
+    up = event.code === "BracketRight" || event.key === "]",
+    reset = event.key === "\\";
+  if (!down && !up && !reset) return;
+  // Layouts where [ ] \ need AltGr (e.g. Turkish Q) report ctrl/alt modifiers.
+  if (
+    (event.ctrlKey || event.metaKey || event.altKey) &&
+    !(event.getModifierState && event.getModifierState("AltGraph"))
+  )
+    return;
+  if (isTypingTarget(event.target) || !hasVideoLoaded()) return;
+  event.preventDefault();
+  setPlaybackRate(reset ? 1 : playbackRate + (up ? 0.1 : -0.1));
+  flashSpeed();
+});
 // Shift held on its own: the browse tabs show the letter that opens them (Shift+S / P / D)
 document.addEventListener("keydown", (event) => {
   if (event.key === "Shift" && !(event.ctrlKey || event.metaKey || event.altKey) && !isTypingTarget(event.target))
@@ -300,11 +312,6 @@ document.addEventListener("keydown", (event) => {
 const dropShiftHint = () => document.body.classList.remove("shiftHeld");
 document.addEventListener("keyup", (event) => event.key === "Shift" && dropShiftHint());
 window.addEventListener("blur", dropShiftHint);
-function toggleMiniPlayer() {
-  if (document.body.classList.contains("browsing")) {
-    if (!playerFrame.classList.contains("empty")) exitBrowse(); // nothing to restore if nothing was played
-  } else enterBrowse();
-}
 document.addEventListener("keydown", (event) => {
   if (
     event.ctrlKey ||
@@ -363,35 +370,6 @@ document.addEventListener("keydown", (event) => {
     !popupOpen()
   ) {
     event.preventDefault();
-    byId("clearQueueBtn").click();
+    clearQueueWithUndo();
   }
 });
-
-// Close the mini player: it fades and shrinks away, then playback stops. The queue and its
-// position are kept, so Shift+N / playing something again carries on from there.
-const miniClose = byId("miniClose");
-function closeMiniPlayer() {
-  if (
-    !playerFrame.classList.contains("mini") ||
-    playerFrame.classList.contains("closing")
-  )
-    return;
-  playerFrame.classList.add("closing");
-  setTimeout(() => {
-    const keepW = queueIndex,
-      keepSource = playSource;
-    stopPlayback(); // pauses, empties the video, hides the (now empty) mini window
-    queueIndex = keepW;
-    playSource = keepSource;
-    playerFrame.classList.remove("closing");
-  }, 240);
-}
-miniClose.addEventListener("click", closeMiniPlayer);
-// Tucked away at the window's right edge, still playing; the tab left there brings it back
-const miniTuck = byId("miniTuck");
-miniTuck.addEventListener("click", (event) => {
-  event.stopPropagation(); // not the mini window's own click (play / pause)
-  playerFrame.classList.add("tucked");
-});
-miniTuck.addEventListener("dblclick", (event) => event.stopPropagation());
-byId("miniUntuck").addEventListener("click", () => playerFrame.classList.remove("tucked"));

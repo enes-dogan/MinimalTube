@@ -105,13 +105,9 @@ body.shiftHeld #browseTabs button::first-letter {
 #browseBody:has(#plView.active.detail) {
   scroll-padding-top: calc(var(--stickyH, 71px) + 8px);
 }
-/* a wide window: the open side panel sits beside the page instead of over it, and the cards
-   make room for it */
-@media (min-width: 1600px) {
-  body.queueOpen #browseBody {
-    padding-right: calc(var(--bpQueueW, 380px) + 24px);
-  }
-}
+/* The open side panel lies over the page at every width. The cards never make room for it:
+   a grid that changes its columns moves everything under the reader, more the further down
+   the page is scrolled. */
 #subAddInput {
   flex: 1;
   min-width: 180px;
