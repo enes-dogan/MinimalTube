@@ -16,8 +16,7 @@ import threading
 import time
 from pathlib import Path
 
-# This folder is also the extension, and Chromium refuses to load one that holds a name
-# starting with "_": never write the package's bytecode (__pycache__) here.
+# No bytecode (__pycache__): the project folder keeps only the files it came with.
 sys.dont_write_bytecode = True
 
 REQUIREMENTS = Path(__file__).resolve().parent / "requirements.txt"

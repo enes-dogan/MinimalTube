@@ -10,10 +10,10 @@ const SERVER_PORT = 7860,
 
 // What to run to (re)install MinimalTube on this OS, for messages.
 const INSTALLER = /Windows/.test(navigator.userAgent)
-  ? "install.cmd"
+  ? "install-windows.cmd"
   : /Mac OS X|Macintosh/.test(navigator.userAgent)
-    ? "install.command"
-    : "./install.sh";
+    ? "install-macos.command"
+    : "./install-linux.sh";
 
 // How "paste" is pressed here, for the texts that name it.
 const PASTE_KEYS = /Mac OS X|Macintosh/.test(navigator.userAgent) ? ["⌘", "V"] : ["Ctrl", "V"];

@@ -52,15 +52,15 @@ You need a Chromium-based browser: Google Chrome, Chromium (ungoogled-chromium t
 Microsoft Edge, Vivaldi or Opera. Everything else the installer brings along.
 
 1. **Load the extension:** open `chrome://extensions` (`edge://extensions` in Edge), switch on
-   *Developer mode*, click *Load unpacked* and pick this folder. Its ID is always
+   *Developer mode*, click *Load unpacked* and pick the `extension` folder inside this one. Its ID is always
    `bnenkakahnieeabjicmgndndommgehje`, on every machine.
 2. **Run the installer** from this folder:
 
    | | |
    |---|---|
-   | Linux | `./install.sh` in a terminal, or double-click `install.sh` |
-   | Windows 11 | double-click `install.cmd`. If Windows says it protected your PC, click *More info* → *Run anyway* |
-   | macOS | double-click `install.command` (or `./install.sh` in Terminal). If macOS won't open it, right-click it → *Open* → *Open* |
+   | Linux | `./install-linux.sh` in a terminal, or double-click `install-linux.sh` |
+   | Windows 11 | double-click `install-windows.cmd`. If Windows says it protected your PC, click *More info* → *Run anyway* |
+   | macOS | double-click `install-macos.command`. If macOS won't open it, right-click it → *Open* → *Open* |
 
 3. **Reload the extension** on `chrome://extensions` and start **MinimalTube** from your
    application menu (Linux), the Start menu (Windows) or Launchpad / Spotlight (macOS). The
@@ -77,7 +77,7 @@ Nothing it does needs sudo or an admin password, and nothing goes outside your u
   30 MB, checked against its published checksum) with Flask, Flask-CORS and waitress in it. On
   Linux, when your system's `python3` already has Flask, Flask-CORS and pip (from your
   distribution's packages), that one is used and nothing is downloaded;
-  `MINIMALTUBE_OWN_PYTHON=1 ./install.sh` gives it its own anyway.
+  `MINIMALTUBE_OWN_PYTHON=1 ./install-linux.sh` gives it its own anyway.
 - **yt-dlp**, always as MinimalTube's own copy, so Settings → **Update yt-dlp** can keep it
   current. A yt-dlp of your system is only the fallback.
 - **ffmpeg and Deno.** The ones on your system when it has them; otherwise MinimalTube's own.
@@ -142,6 +142,10 @@ After getting new code for this folder: reload the extension on `chrome://extens
 Settings → **Restart server**, so both halves run the new code. Run the installer again when
 the update says so; that also updates the server's Python packages.
 
+Coming from a version where the browser loaded this whole folder: remove MinimalTube on
+`chrome://extensions`, *Load unpacked* the `extension` folder and run the installer once more.
+The ID stays the same, so your settings, queue and watch progress are kept.
+
 To stop the server by hand (the next MinimalTube window starts it again): on Linux and macOS
 `pkill -f "server.py --host 127.0.0.1"`; on Windows, end *python.exe* in Task Manager. A
 server you started in a terminal stops with Ctrl+C there.
@@ -153,8 +157,8 @@ server you started in a terminal stops with Ctrl+C there.
   Python: the `python` folder in the app folder above).
 - **Nothing happens from the application menu, or the server never starts:** run the
   installer again; a browser installed after it ran isn't registered yet. If the extension's
-  ID on `chrome://extensions` isn't the one above, pass it: `./install.sh <extension-id>`
-  (Windows: `install.cmd <extension-id>`). A Flatpak browser can't start the server; a snap
+  ID on `chrome://extensions` isn't the one above, pass it: `./install-linux.sh <extension-id>`
+  (Windows: `install-windows.cmd <extension-id>`). A Flatpak browser can't start the server; a snap
   browser only through the application-menu entry.
 - **A video won't play:** yt-dlp is probably out of date: Settings → **Update yt-dlp**.
 - **"The running server is outdated":** the extension is newer than the server that is
@@ -165,19 +169,23 @@ server you started in a terminal stops with Ctrl+C there.
 
 ## For developers
 
-- `manifest.json`; `background.js` (the service worker's entry) + `background/` (one file per
+- `extension/`: the folder the browser loads, and nothing but the extension.
+  `manifest.json`; `background.js` (the service worker's entry) + `background/` (one file per
   job: the server, the player window, links, YouTube, history, playlist sync, subscriptions);
   `content-youtube.js` (buttons on youtube.com); `open.*` (where YouTube links land on their way
   to the app); `popup.*`.
-- `player.html` + `js/`: the player, one file per part. `js/common.js` is shared with the
-  background, the popup and the content script. See `js/README.md`.
-- `css/`: the stylesheets, built on the tokens in `css/tokens.css`. See `css/README.md`.
+- `extension/player.html` + `extension/js/`: the player, one file per part. `js/common.js` is
+  shared with the background, the popup and the content script. See `extension/js/README.md`.
+- `extension/css/`: the stylesheets, built on the tokens in `css/tokens.css`. See
+  `extension/css/README.md`.
 - `server.py` + `minimaltube/`: the server (its Python packages are in `requirements.txt`).
   See `minimaltube/README.md`.
 - `minimaltube_host.py`: the native messaging host that starts the server.
-- `install.py`: the installer, the same on every OS. `install.sh` (Linux, macOS; double-click
-  `install.command` on macOS) and `install.cmd` + `install.ps1` (Windows) find or fetch the
-  Python it runs with. What differs per OS at runtime (folders, PATH, starting and restarting
+- `install-linux.sh`, `install-macos.command`, `install-windows.cmd`: what you run; each only
+  starts its script in `installer/`. There, `install.sh` (Linux, macOS) and `install.ps1`
+  (Windows) find or fetch the Python that `install.py`, the installer itself and the same on
+  every OS, runs with. What differs per OS at runtime (folders, PATH, starting and restarting
   the server, the file manager) is in `minimaltube/system.py`.
-- Python never writes bytecode here (`-B`): Chromium refuses to load an extension folder that
-  holds a `__pycache__`.
+- Chromium refuses to load an extension folder that holds a top-level name starting with `_`,
+  so nothing else is kept in `extension/`. Python writes no bytecode (`-B`), which keeps the
+  whole folder to the files it came with.

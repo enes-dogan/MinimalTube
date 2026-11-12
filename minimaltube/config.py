@@ -1,8 +1,7 @@
 """MinimalTube server - config."""
 import re
-from pathlib import Path
 
-from .system import app_dir, cache_dir, data_dir, extension_id
+from .system import EXTENSION_DIR, app_dir, cache_dir, data_dir, extension_id
 
 # Per OS: see system.py
 CACHE_DIR = cache_dir()
@@ -14,7 +13,7 @@ APP_DIR.mkdir(parents=True, exist_ok=True)
 
 # The only browser origin the server answers (its CORS headers and the Origin check in routes.py).
 # A manifest without a "key" gets an id of the browser's choosing, so any extension counts then.
-_EXTENSION_ID = extension_id(Path(__file__).resolve().parent.parent / "manifest.json")
+_EXTENSION_ID = extension_id(EXTENSION_DIR / "manifest.json")
 EXTENSION_ORIGIN_RE = re.compile(f"chrome-extension://{_EXTENSION_ID or '[a-p]{32}'}$")
 
 CACHE_MAX_AGE_DAYS = 60

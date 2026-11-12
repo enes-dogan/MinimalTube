@@ -23,6 +23,11 @@ import sys
 import time
 from pathlib import Path
 
+# The project folder (server.py, this package, the installers) and the extension inside it: the
+# folder Chromium loads, which holds nothing but the extension.
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+EXTENSION_DIR = PROJECT_DIR / "extension"
+
 WINDOWS = sys.platform == "win32"
 MACOS = sys.platform == "darwin"
 
@@ -215,5 +220,5 @@ def open_folder(path) -> None:
 def installer_hint() -> str:
     """The installer to run on this OS, for messages (the extension names the same ones)."""
     if WINDOWS:
-        return "install.cmd"
-    return "install.command" if MACOS else "./install.sh"
+        return "install-windows.cmd"
+    return "install-macos.command" if MACOS else "./install-linux.sh"

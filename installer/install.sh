@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# MinimalTube installer for Linux and macOS (on Windows: install.cmd). Run it once, and again if
-# you move this folder: ./install.sh (on macOS, double-clicking install.command does the same).
+# MinimalTube installer for Linux and macOS. It is started by install-linux.sh and
+# install-macos.command in the folder above: run those (once, and again if you move the folder).
 #
 # It finds the Python the server will run on, then install.py does the rest with it (the server's
 # packages and its own yt-dlp; ffmpeg and deno when the system has none; the native host the
@@ -14,7 +14,7 @@
 # (MINIMALTUBE_OWN_PYTHON=1 gives it its own Python on Linux too.)
 #
 # The extension ID follows from the "key" in manifest.json, so there's nothing to fill in; a copy
-# without that key passes its ID: ./install.sh <id> [<id> ...]
+# without that key passes its ID: ./install-linux.sh <id> [<id> ...]
 set -euo pipefail
 
 OS="$(uname -s)"

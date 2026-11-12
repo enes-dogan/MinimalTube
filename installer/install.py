@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """MinimalTube installer: the part every OS shares.
 
-install.sh (Linux, macOS) and install.cmd (Windows) find or fetch the Python the server will run
+install.sh (Linux, macOS) and install.ps1 (Windows), next to this file, find or fetch the Python the server will run
 on, then run this with it:
 
   1. the server's packages (Flask, Flask-CORS, waitress) when that Python is MinimalTube's own,
@@ -36,11 +36,11 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-# This folder is also the extension: Chromium refuses to load one holding __pycache__.
+# No bytecode: the project folder keeps only the files it came with.
 sys.dont_write_bytecode = True
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-from minimaltube.system import MACOS, WINDOWS, app_dir, bin_dir, extension_id, use_own_tools  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from minimaltube.system import (  # noqa: E402
+    EXTENSION_DIR, MACOS, PROJECT_DIR, WINDOWS, app_dir, bin_dir, extension_id, installer_hint, use_own_tools)
 
 HOST_NAME = "com.minimaltube.host"
 ID_RE = re.compile(r"^[a-p]{32}$")
@@ -73,7 +73,7 @@ def write_if_changed(path: Path, text: str, encoding: str = "utf-8") -> None:
 # ---------------------------------------------------------------- extension id
 def extension_ids(argv: list[str]) -> list[str]:
     # the id follows from manifest.json's "key" (system.extension_id), the same on every machine
-    ids = list(argv) or [i for i in [extension_id(HERE / "manifest.json")] if i]
+    ids = list(argv) or [i for i in [extension_id(EXTENSION_DIR / "manifest.json")] if i]
     if not ids and sys.stdin.isatty():
         say("Open chrome://extensions, turn on Developer mode and copy MinimalTube's ID.")
         typed = input("Extension ID: ").strip()
@@ -106,11 +106,11 @@ def server_packages() -> None:
         missing = [m for m in ("flask", "flask_cors") if importlib.util.find_spec(m) is None]
         if missing:
             warn(f"{sys.executable} is missing {', '.join(missing)}. Run the installer itself "
-                 "(./install.sh) instead of install.py: it gives MinimalTube a Python of its own "
+                 f"({installer_hint()}) instead of install.py: it gives MinimalTube a Python of its own "
                  "when the system's lacks them.")
         return
     reqs = []
-    for line in (HERE / "requirements.txt").read_text(encoding="utf-8").splitlines():
+    for line in (PROJECT_DIR / "requirements.txt").read_text(encoding="utf-8").splitlines():
         req = line.split("#", 1)[0].strip()
         if req and not req.lower().startswith("yt-dlp"):  # yt-dlp: the own copy below
             reqs.append(req)
@@ -124,10 +124,10 @@ def server_packages() -> None:
 def own_ytdlp() -> None:
     if importlib.util.find_spec("pip") is None:
         warn("this Python has no pip, so MinimalTube can't keep its own yt-dlp (a system-wide one "
-             "is used if there is one). Run the installer itself (./install.sh) instead of install.py.")
+             f"is used if there is one). Run the installer itself ({installer_hint()}) instead of install.py.")
         return
     say("Installing MinimalTube's own yt-dlp...")
-    done = subprocess.run([sys.executable, "-X", "utf8", "-B", str(HERE / "server.py"), "--update-yt-dlp"])
+    done = subprocess.run([sys.executable, "-X", "utf8", "-B", str(PROJECT_DIR / "server.py"), "--update-yt-dlp"])
     if done.returncode:
         warn("yt-dlp didn't install; a system-wide yt-dlp is used if there is one.")
 
@@ -370,7 +370,7 @@ def host_launcher() -> Path:
     """A launcher the browser can start: it runs minimaltube_host.py with this Python."""
     folder = app_dir()
     folder.mkdir(parents=True, exist_ok=True)
-    host = HERE / "minimaltube_host.py"
+    host = PROJECT_DIR / "minimaltube_host.py"
     if WINDOWS:
         # Windows starts native hosts through cmd.exe, which reads a .bat in the console's code
         # page: a non-English user name in a path would break it. So the .bat only has paths it
@@ -452,8 +452,8 @@ def pick_browser(found: list[dict], ext_id: str) -> dict | None:
 
 def write_ico(dest: Path) -> None:
     """An .ico of the PNG icons (Windows reads PNG images inside an .ico)."""
-    images = [(s, (HERE / "icons" / f"icon{s}.png").read_bytes())
-              for s in (16, 32, 48, 64, 128, 256) if (HERE / "icons" / f"icon{s}.png").is_file()]
+    images = [(s, (EXTENSION_DIR / "icons" / f"icon{s}.png").read_bytes())
+              for s in (16, 32, 48, 64, 128, 256) if (EXTENSION_DIR / "icons" / f"icon{s}.png").is_file()]
     offset = 6 + 16 * len(images)
     head, body = struct.pack("<HHH", 0, 1, len(images)), b""
     for size, png in images:
@@ -465,7 +465,7 @@ def write_ico(dest: Path) -> None:
 def launcher_linux(browser: dict, ext_id: str) -> str:
     apps = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "applications"
     apps.mkdir(parents=True, exist_ok=True)
-    icon = HERE / "icons" / "icon128.png"
+    icon = EXTENSION_DIR / "icons" / "icon128.png"
     app_url = f"chrome-extension://{ext_id}/player.html"
     command = f'"{browser["exe"]}" --app={app_url}'
     if browser.get("sandbox"):
@@ -506,7 +506,7 @@ def launcher_macos(browser: dict, ext_id: str) -> str:
     contents = app / "Contents"
     (contents / "MacOS").mkdir(parents=True, exist_ok=True)
     (contents / "Resources").mkdir(parents=True, exist_ok=True)
-    version = json.loads((HERE / "manifest.json").read_text(encoding="utf-8")).get("version", "1.0")
+    version = json.loads((EXTENSION_DIR / "manifest.json").read_text(encoding="utf-8")).get("version", "1.0")
     with open(contents / "Info.plist", "wb") as f:
         plistlib.dump({
             "CFBundleName": "MinimalTube",
@@ -533,7 +533,7 @@ def launcher_macos(browser: dict, ext_id: str) -> str:
             iconset.mkdir()
             for name, size in [("16x16", 16), ("16x16@2x", 32), ("32x32", 32), ("32x32@2x", 64),
                                ("128x128", 128), ("128x128@2x", 256), ("256x256", 256)]:
-                src = HERE / "icons" / f"icon{size}.png"
+                src = EXTENSION_DIR / "icons" / f"icon{size}.png"
                 if src.is_file():
                     shutil.copyfile(src, iconset / f"icon_{name}.png")
             made = subprocess.run(["iconutil", "-c", "icns", "-o", str(contents / "Resources" / "MinimalTube.icns"),
@@ -582,8 +582,8 @@ def main(argv: list[str]) -> int:
     say(f"Extension ID: {ids[0]}")
     say(f"Python for the server: {sys.executable}"
         + (" (MinimalTube's own)" if own_python_in_use() else ""))
-    if not (HERE / "server.py").is_file():
-        warn("server.py isn't next to install.py: the extension can't start the server.")
+    if not (PROJECT_DIR / "server.py").is_file():
+        warn(f"server.py isn't in {PROJECT_DIR}: the extension can't start the server.")
     server_packages()
     own_ytdlp()
     tools()
@@ -607,7 +607,7 @@ def main(argv: list[str]) -> int:
     else:
         say("Done.")
     say("If MinimalTube isn't in your browser yet: open chrome://extensions, turn on Developer mode,")
-    say(f"click Load unpacked and pick this folder: {HERE}")
+    say(f"click Load unpacked and pick this folder: {EXTENSION_DIR}")
     say("If it is: reload it there.")
     return 1 if problems and not found else 0
 

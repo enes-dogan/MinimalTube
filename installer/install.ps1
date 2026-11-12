@@ -1,4 +1,4 @@
-# MinimalTube installer for Windows (install.cmd starts it; run that one).
+# MinimalTube installer for Windows (install-windows.cmd in the folder above starts it; run that one).
 #
 # It gets MinimalTube's own Python, a standalone CPython build (python-build-standalone) kept in
 # %LOCALAPPDATA%\MinimalTube\python, and runs install.py with it, which does the rest: the server's
@@ -7,7 +7,7 @@
 # No step needs admin rights, nothing is installed system-wide and PATH isn't changed.
 #
 # The extension ID follows from the "key" in manifest.json; a copy without that key passes its
-# ID: install.cmd <id>
+# ID: install-windows.cmd <id>
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Invoke-WebRequest is many times slower with its progress bar

@@ -1,5 +1,5 @@
 # Python packages for server.py (ffmpeg and deno are needed too). The installer sets all of it up
-# (install.sh on Linux and macOS, install.cmd on Windows): in MinimalTube's own Python, except on a
+# (install-linux.sh, install-macos.command, install-windows.cmd): in MinimalTube's own Python, except on a
 # Linux system whose python3 already has Flask, Flask-CORS and pip; ffmpeg and deno are fetched
 # when the system has none.
 flask>=2.2

@@ -22,8 +22,8 @@ import time
 import urllib.request
 from pathlib import Path
 
-# This folder is also the extension, and Chromium refuses to load one that holds a name starting
-# with "_": never write bytecode (__pycache__) here, not even for minimaltube.system below.
+# No bytecode (__pycache__), not even for minimaltube.system below: the project folder keeps only
+# the files it came with.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from minimaltube.system import (  # noqa: E402
@@ -97,7 +97,6 @@ def start_server(port: int) -> dict:
     proc = spawn_detached(
         # -u: every line reaches the log as it's printed (a buffered one is lost when it's stopped).
         # -X utf8: files and the log are UTF-8 on every OS (Windows would use its code page).
-        # -B: no __pycache__ in this folder (see above).
         [sys.executable, "-X", "utf8", "-u", "-B", str(script), "--host", "127.0.0.1", "--port", str(port)],
         cwd=script.parent,
         stdout=log,  # never inherit our stdout: it's the native-messaging channel
