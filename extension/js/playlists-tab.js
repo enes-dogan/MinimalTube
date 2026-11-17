@@ -274,6 +274,58 @@ function removeFromPlaylist(pl, item) {
     },
   });
 }
+// "Remove watched": every video of the open playlist watched to the end (the last 5 % count as
+// the end) leaves it, under one Undo bar. Its file is deleted too, unless another playlist has
+// the video.
+function removeWatchedFromPlaylist() {
+  const pl = openPlaylist();
+  if (!pl) return;
+  const before = (pl.items || []).slice(),
+    gone = before.filter((item) => watchDone(item.id));
+  if (!gone.length) return notify("No watched videos in this playlist");
+  const goneIds = new Set(gone.map((item) => item.id)),
+    elsewhere = (id) =>
+      savedPlaylists.some((other) => other.id !== pl.id && (other.items || []).some((item) => item.id === id)),
+    fileIds = [...goneIds].filter((id) => (videoJob(id) || {}).status === "ready" && !elsewhere(id));
+  pl.items = before.filter((item) => !goneIds.has(item.id));
+  pl.count = pl.items.length;
+  const files = stageFileDeletes(fileIds);
+  renderPlaylistCards();
+  const deleted = fileIds.length ? ` (${plural(fileIds.length, "file")} deleted)` : "";
+  offerUndo(`${plural(gone.length, "watched video")} removed from ${pl.name}${deleted}`, {
+    undo: () => {
+      const current = savedPlaylists.find((playlist) => playlist.id === pl.id);
+      if (current) {
+        current.items = before;
+        current.count = before.length;
+      }
+      files.restore();
+      renderPlaylistCards();
+    },
+    commit: async () => {
+      const filesDone = files.commit(); // sent at once, so closing the app doesn't lose them
+      try {
+        const answers = await Promise.all(
+          gone.map((item) =>
+            api(`/playlists/${encodeURIComponent(pl.id)}/items/${encodeURIComponent(item.id)}`, {
+              method: "DELETE",
+              keepalive: true,
+            }),
+          ),
+        );
+        // the answer sent after the last removal is the playlist as it is now
+        const last = answers.map((data) => data.playlist).sort((a, b) => a.items.length - b.items.length)[0];
+        applySavedPlaylist(last);
+        renderPlaylistCards();
+      } catch (err) {
+        notify(`Couldn't remove the watched videos: ${netMessage(firstLine(err.message))}`, true, 4000);
+        loadSavedPlaylists();
+      }
+      await filesDone;
+    },
+  });
+}
+byId("plRemoveWatched").addEventListener("click", removeWatchedFromPlaylist);
 makeSortable(plItemsGrid, {
   item: ".vCard[data-vid]",
   scroller: browseBody,

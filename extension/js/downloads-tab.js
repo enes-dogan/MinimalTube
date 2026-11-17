@@ -2,7 +2,8 @@
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
 const dlView = byId("dlView"),
-  dlGrid = byId("dlGrid");
+  dlGrid = byId("dlGrid"),
+  dlHeadSub = byId("dlHeadSub");
 function paintDlBadge(badge, entry) {
   const state = entry.status;
   badge.classList.toggle("prog", isActiveEntry(entry));
@@ -69,6 +70,8 @@ function renderDownloadCards() {
     return;
   if (bpMenu.owner && dlGrid.contains(bpMenu.owner)) closeBpMenu();
   dlGrid.innerHTML = "";
+  const size = library.reduce((sum, entry) => sum + (entry.size || 0), 0);
+  dlHeadSub.textContent = [plural(library.length, "video"), size && fmtSize(size)].filter(Boolean).join(" · ");
   if (!library.length) {
     dlGrid.appendChild(el("div", "bpEmpty", "No downloads yet. Use ⋮ on any video → Download, or Download all in the queue."));
     return;
@@ -76,3 +79,12 @@ function renderDownloadCards() {
   library.forEach((entry) => dlGrid.appendChild(makeDownloadCard(entry)));
 }
 makeSortable(dlGrid, { item: ".vCard[data-vid]", scroller: browseBody, canSort: () => library.length > 1, onMove: moveLibraryItem });
+
+// "Delete watched": every download watched to the end (the last 5 % count as the end) goes,
+// under one Undo bar.
+byId("dlDeleteWatched").addEventListener("click", () => {
+  const ids = library.filter((entry) => !isActiveEntry(entry) && watchDone(entry.id)).map((entry) => entry.id);
+  if (!ids.length) return notify("No watched downloads to delete");
+  const files = stageFileDeletes(ids);
+  offerUndo(`${plural(ids.length, "watched video")} deleted`, { undo: files.restore, commit: files.commit });
+});

@@ -365,6 +365,10 @@
                   <div id="plHeadTitle"></div>
                   <div id="plHeadSub"></div>
                 </div>
+                <button id="plRemoveWatched" class="btn btn-ghost" type="button" title="Remove the videos you've watched from this playlist (their files too, unless another playlist has them)">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
+                  <span>Remove watched</span>
+                </button>
                 <button id="plPlayAll" class="btn btn-primary" type="button">
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                   <span>Play all</span>
@@ -374,6 +378,16 @@
             </div>
           </div>
           <div id="dlView" class="bpView">
+            <div id="dlHead">
+              <div id="dlHeadText">
+                <div id="dlHeadTitle">Downloads</div>
+                <div id="dlHeadSub"></div>
+              </div>
+              <button id="dlDeleteWatched" class="btn btn-ghost" type="button" title="Delete the downloads you've watched">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
+                <span>Delete watched</span>
+              </button>
+            </div>
             <div id="dlGrid"></div>
           </div>
         </div>

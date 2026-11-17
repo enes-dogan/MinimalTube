@@ -88,6 +88,38 @@ function deleteFile(id, title) {
     },
   });
 }
+/**
+ * Deletes several videos' files under one Undo bar: they are gone from every list at once
+ * (playback stops if one of them is playing); the caller shows the bar and passes these on.
+ * @param {string[]} ids Video ids.
+ * @returns {{restore: () => void, commit: () => Promise<void>}} `restore` puts them all back
+ *   (Undo); `commit` deletes them from the disk and puts back any the server couldn't delete.
+ */
+function stageFileDeletes(ids) {
+  if (ids.includes(currentVideoId)) {
+    const keepIndex = queueIndex;
+    stopPlayback();
+    queueIndex = keepIndex;
+  }
+  const restores = ids.map(hideDownloadedFile);
+  return {
+    restore: () => [...restores].reverse().forEach((putBack) => putBack()),
+    commit: async () => {
+      if (!ids.length) return;
+      const results = await Promise.allSettled(
+        ids.map((id) => api(`/video/${id}`, { method: "DELETE", keepalive: true })),
+      );
+      let failed = 0;
+      results.forEach((result, i) => {
+        if (result.status === "fulfilled") return hiddenDeletes.delete(ids[i]);
+        failed++;
+        restores[i]();
+      });
+      if (failed) notify(`Couldn't delete ${plural(failed, "video")}`, true, 4000);
+      reloadLibrary();
+    },
+  };
+}
 function deleteLibraryEntry(entry) {
   deleteFile(entry.id, entry.title);
 }

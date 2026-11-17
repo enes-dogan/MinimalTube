@@ -168,7 +168,7 @@ browseBody.addEventListener(
   { passive: true },
 );
 // the sticky bar's real height (it wraps on a narrow window), for browse.css's scroll-padding
-const stickyBars = [byId("subsBar"), byId("plHead")],
+const stickyBars = [byId("subsBar"), byId("plHead"), byId("dlHead")],
   stickyBarsSize = new ResizeObserver(() =>
     browseBody.style.setProperty("--stickyH", `${Math.max(...stickyBars.map((bar) => bar.offsetHeight))}px`),
   );
