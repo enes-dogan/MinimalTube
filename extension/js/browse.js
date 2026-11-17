@@ -84,7 +84,7 @@ function animateFrameFrom(from) {
 }
 function enterBrowse(noLoad) {
   const from = document.body.classList.contains("browsing") ? null : frameRect();
-  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  leaveFullscreen();
   closeQueuePanel();
   closeSettings();
   floatPanels(true);
@@ -250,6 +250,57 @@ function closeMiniPlayer() {
   }, 240);
 }
 miniClose.addEventListener("click", closeMiniPlayer);
+
+/* ---------- Esc, step by step: the big player shrinks to the mini player, a second Esc pauses
+ * it, a third closes it. With more videos waiting in the queue the third asks whether to clear
+ * the queue too ("Clear the queue too?", the same card as "Unsubscribe?"). ---------- */
+const confirmClose = byId("confirmClose"),
+  ccClear = byId("ccClear"),
+  ccKeep = byId("ccKeep");
+let ccTimer = null;
+function closeConfirmClose() {
+  clearTimeout(ccTimer);
+  ccTimer = null;
+  confirmClose.classList.remove("show", "run");
+}
+function askClosePlayer() {
+  const waiting = playSource !== "library" && queueHasItems() && queue.items.length > 1;
+  if (!waiting) return closeMiniPlayer();
+  byId("ccCount").textContent = `${plural(queue.items.length, "video")} in the queue. Esc keeps them.`;
+  restartAnimation(confirmClose, "show", "run");
+  clearTimeout(ccTimer);
+  ccTimer = setTimeout(closeConfirmClose, 8000); // no answer = the player stays
+  ccKeep.focus();
+}
+function escPlayer() {
+  if (!playerFrame.classList.contains("mini")) return enterBrowse();
+  if (!video.paused) return video.pause();
+  askClosePlayer();
+}
+ccClear.addEventListener("click", () => {
+  closeConfirmClose();
+  clearQueueWithUndo();
+  closeMiniPlayer();
+});
+ccKeep.addEventListener("click", () => {
+  closeConfirmClose();
+  closeMiniPlayer();
+});
+dialogKeys(confirmClose, { KeyC: ccClear, KeyK: ccKeep });
+addLayer({
+  el: confirmClose,
+  level: 4,
+  outside: false,
+  isOpen: () => confirmClose.classList.contains("show"),
+  close: () => ccKeep.click(),
+});
+addLayer({
+  el: playerFrame,
+  level: 0,
+  outside: false,
+  isOpen: () => !playerFrame.classList.contains("empty") && !isTypingTarget(document.activeElement),
+  close: escPlayer,
+});
 // Tucked away at the window's right edge, still playing; the tab left there brings it back
 const miniTuck = byId("miniTuck");
 miniTuck.addEventListener("click", (event) => {

@@ -590,8 +590,17 @@ function hasVideoLoaded() {
 function toggleFullscreen() {
   if (playerFrame.classList.contains("mini")) return exitBrowse();
   if (controls.classList.contains("loadFailed")) return;
-  if (document.fullscreenElement) document.exitFullscreen();
+  if (document.fullscreenElement) leaveFullscreen();
   else playerFrame.requestFullscreen();
+}
+// Fullscreen left by the app itself. Left any other way it was Esc, which the browser keeps to
+// itself there (no keydown reaches the page): the player then shrinks to the mini player, as
+// Esc does from the big player.
+let ownFullscreenExit = false;
+function leaveFullscreen() {
+  if (!document.fullscreenElement) return Promise.resolve();
+  ownFullscreenExit = true;
+  return document.exitFullscreen().catch(() => {});
 }
 function setMediaSession(videoId, title) {
   navigator.mediaSession.metadata = new MediaMetadata({
@@ -621,4 +630,8 @@ document.addEventListener("fullscreenchange", () => {
   fullscreenBtn.classList.toggle("is-fullscreen", !!document.fullscreenElement);
   const host = document.fullscreenElement || document.body;
   host.append(undoBar, toastEl, settingsPanel);
+  if (document.fullscreenElement) return;
+  const own = ownFullscreenExit;
+  ownFullscreenExit = false;
+  if (!own && !playerFrame.classList.contains("empty") && !document.body.classList.contains("browsing")) enterBrowse();
 });

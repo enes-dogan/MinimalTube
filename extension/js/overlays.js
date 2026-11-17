@@ -23,7 +23,7 @@ const SHORTCUT_LIST = [
   [["C"], "Clear the queue (while that panel is open)"],
   [["Shift", "N"], "Next video"],
   [["Shift", "B"], "Previous video"],
-  [["Esc"], "Close panels and popups, cancel Up next"],
+  [["Esc"], "Close or go back; on the player: mini player, pause, close"],
   [["U"], "Undo a delete, removal or Clear queue (while its bar shows)"],
   [["Right-click"], "A video or row opens its ⋮ menu"],
   "Lists: videos, playlists, downloads, channels, the queue",

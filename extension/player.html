@@ -393,6 +393,17 @@
       </div>
       <div class="unBar"></div>
     </div>
+    <!-- Asked when Esc closes the player while more videos wait in the queue -->
+    <div id="confirmClose" role="alertdialog" aria-labelledby="ccTitle">
+      <div class="unLabel">Closing the player</div>
+      <div class="unTitle" id="ccTitle">Clear the queue too?</div>
+      <div class="unCount" id="ccCount"></div>
+      <div class="unActions">
+        <button id="ccClear" class="btn btn-sm btn-danger" type="button" title="Clear the queue (C)" aria-keyshortcuts="C">Clear queue<kbd class="kbd">C</kbd></button>
+        <button id="ccKeep" class="btn btn-sm btn-ghost" type="button" title="Keep the queue (K)" aria-keyshortcuts="K">Keep it<kbd class="kbd">K</kbd></button>
+      </div>
+      <div class="unBar"></div>
+    </div>
     <!-- What's left of the mini player while it's tucked away at the window's edge -->
     <button id="miniUntuck" type="button" title="Bring the player back" aria-label="Bring the player back">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 16.59 10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>

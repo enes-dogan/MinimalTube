@@ -73,7 +73,7 @@ async function paintViewSwitch() {
 }
 viewSwitchBtn.addEventListener("click", async () => {
   closeSettings();
-  if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+  await leaveFullscreen();
   const res = await chrome.runtime.sendMessage({ type: "minimaltube-switch-view" }).catch(() => null);
   if (!res || !res.ok) notify(`Couldn't move MinimalTube: ${firstLine((res && res.error) || "no answer")}`, true, 5000);
 });
