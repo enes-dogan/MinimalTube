@@ -127,11 +127,11 @@ function downloadEntry(v) {
     : { label: "Downloading", key: "S", dots: true, cls: "busy", icon: ICON_DOWNLOAD, disabled: true };
 }
 /**
- * "Add next to queue" for a video. While a saved playlist is in the queue it refuses
+ * "Add to queue" for a video (it goes to the end). While a saved playlist is in the queue it refuses
  * (queueLockedReason) instead of adding the video to that playlist.
  */
-function addNextEntry(v) {
-  return { label: "Add next to queue", key: "Q", icon: ICON_NEXT, refuse: queueLockedReason, onClick: () => queueVideoNext(v) };
+function addToQueueEntry(v) {
+  return { label: "Add to queue", key: "Q", icon: ICON_NEXT, refuse: queueLockedReason, onClick: () => queueVideoLast(v) };
 }
 function channelEntry(videoId, known) {
   if (!videoId) return null;
@@ -154,7 +154,7 @@ function openOnYouTubeEntry(v) {
 
 // a feed card
 function videoMenuEntries(v) {
-  return [saveToEntry(videoItem(v), "P"), addNextEntry(v), downloadEntry(v), openOnYouTubeEntry(v)];
+  return [saveToEntry(videoItem(v), "P"), addToQueueEntry(v), downloadEntry(v), openOnYouTubeEntry(v)];
 }
 // a queue row
 function queueMenuEntries(item) {
@@ -177,7 +177,7 @@ function libraryMenuEntries(entry, { play } = {}) {
   return [
     play && { label: "Play", key: "P", icon: ICON_PLAY, onClick: play },
     saveToEntry(videoItem(v)),
-    addNextEntry(v),
+    addToQueueEntry(v),
     channelEntry(entry.id, entry),
     {
       label: isActiveEntry(entry) ? "Cancel download" : "Delete",

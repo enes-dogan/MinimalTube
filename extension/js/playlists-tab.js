@@ -189,7 +189,8 @@ function makePlaylistItemCard(pl, item, idx) {
         icon: ICON_PLAY,
         onClick: play,
       },
-      addNextEntry(item),
+      addToQueueEntry(item),
+      { ...saveToEntry(videoItem(item)), label: "Save to another playlist" },
       channelEntry(item.id, item),
       downloadEntry(item),
       {

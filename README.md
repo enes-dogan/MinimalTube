@@ -26,7 +26,7 @@ run the installer. The installer needs no admin rights and installs nothing syst
   subscriptions at once (you need to be signed in to YouTube in this browser). While you're
   signed in, collabs show up too: a video a channel you follow made with another channel,
   which YouTube lists only under the channel that uploaded it.
-- **Queue and playlists.** *Add next to queue*, drag to reorder, Back / Next. Save the
+- **Queue and playlists.** *Add to queue*, drag to reorder, Back / Next. Save the
   queue (or any video) to your own playlists.
 - **Synced with YouTube.** Save one of your YouTube playlists from its page and it stays
   two-way synced. Finished videos can go to your YouTube history (Settings → *Sync

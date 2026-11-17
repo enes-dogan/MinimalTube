@@ -128,11 +128,11 @@ function insertAfterPlaying(item) {
   return at;
 }
 /**
- * "Add next to queue": the video goes in right after the playing one. With nothing in the queue
- * it becomes the queue; when something plays outside any queue, that video becomes the queue's
- * first item and this one its second.
+ * "Add to queue": the video goes to the end of the queue. With nothing in the queue it becomes
+ * the queue; when something plays outside any queue, that video becomes the queue's first item
+ * and this one its second.
  */
-function queueVideoNext(v) {
+function queueVideoLast(v) {
   const locked = queueLockedReason();
   if (locked) return notify(locked, true, 5000);
   const item = videoItem(v);
@@ -147,15 +147,13 @@ function queueVideoNext(v) {
     playSource = "queue";
     queueIndex = 0;
     appendToQueue(item.id === currentVideoId ? [playing] : [playing, item], { autoPlayIfEmpty: false });
-    return notify(`Playing next: ${v.title}`);
+    return notify("Added to queue");
   }
   if (!queueHasItems()) {
     appendToQueue([item]); // an empty queue: it simply becomes the queue (and starts playing)
     return notify(`Playing: ${v.title}`);
   }
-  insertAfterPlaying(item);
-  queueChanged();
-  notify(`Playing next: ${v.title}`);
+  appendToQueue([item]);
 }
 // Play right away: it goes in right after the current queue item, so the queue carries on after it.
 function playVideoNow(v) {

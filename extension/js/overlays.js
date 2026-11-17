@@ -208,7 +208,7 @@ document.getElementById("shortcutsBtn").addEventListener("click", (event) => {
 const WELCOME_FEATURES = [
   ["▶", "Watch without the noise", "Any YouTube video plays here ad-free and sponsor free with the help of <b>SponsorBlock</b>, downloaded in the best quality so it's yours offline. On youtube.com, right-click a video or link → <b>Add to MinimalTube queue</b>, or paste a link anywhere in the app (<b>" + PASTE_KEYS.join("+") + "</b>)."],
   ["◉", "Your subscriptions", "Add a channel on the Subscriptions tab with its @handle or link. New uploads from all of them arrive in one feed."],
-  ["☰", "Queue and playlists", "⋮ → <b>Add next to queue</b> lines videos up; drag to reorder. Save the queue as a playlist with <b>+</b>, or any video with ⋮ → <b>Save to playlist</b>."],
+  ["☰", "Queue and playlists", "⋮ → <b>Add to queue</b> lines videos up; drag to reorder. Save the queue as a playlist with <b>+</b>, or any video with ⋮ → <b>Save to playlist</b>."],
   ["⟳", "Synced with YouTube", "Save one of your own playlists from its page on youtube.com and it stays two-way synced: changes on either side show up on the other. Finished videos show up in your <b>YouTube history</b> (Settings)."],
   ["⬇", "Downloads", "Everything you downloaded plays offline. Delete a file, a playlist or remove a video from a list, or clear the queue; the bar in the corner (or <b>U</b>) undoes it for 5 seconds."],
   ["⚡", "Instant start", "Settings → <b>Stream while downloading</b> starts videos in a second while they download; <b>Stream only</b> just streams, at up to 1080p, without keeping a copy."],
