@@ -8,6 +8,8 @@ const PLAYER_URL = chrome.runtime.getURL("player.html");
 // (js/startup.js) works that out from the real screen and stores it under "windowSize"; this
 // fixed value is only the fallback until the player has run once.
 const DEFAULT_WINDOW = { width: 1280, height: 750 };
+const PLAYER_TELL_TRIES = 10,
+  PLAYER_TELL_WAIT_MS = 300;
 
 async function getWindowSize() {
   try {
@@ -27,7 +29,10 @@ async function getWindowSize() {
   return DEFAULT_WINDOW;
 }
 
-const playerTabs = () => chrome.tabs.query({ url: PLAYER_URL + "*" });
+// The player lives in the normal profile only. With the extension allowed in incognito, a tab
+// there can carry the player's address without being one (extension pages don't load there).
+const playerTabs = async () =>
+  (await chrome.tabs.query({ url: PLAYER_URL + "*" })).filter((tab) => !tab.incognito).sort((a, b) => a.id - b.id);
 
 async function findPlayerTab() {
   try {
@@ -45,9 +50,13 @@ async function showPlayer(tab) {
 }
 
 const styleOf = (win) => (win.type === "normal" ? "tab" : "window");
+// The browser window a player tab goes into: never an incognito one (the player can't load there)
 const browserWindow = async () => {
-  const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] }).catch(() => null);
-  return win && win.type === "normal" ? win : null;
+  const usable = (win) => win && win.type === "normal" && !win.incognito;
+  const last = await chrome.windows.getLastFocused({ windowTypes: ["normal"] }).catch(() => null);
+  if (usable(last)) return last;
+  const all = await chrome.windows.getAll({ windowTypes: ["normal"] }).catch(() => []);
+  return all.find(usable) || null;
 };
 
 /**
@@ -109,13 +118,20 @@ async function openPlayerWindow(url, style) {
  *   that does is still loading): player.html with the same thing as parameters.
  */
 async function tellPlayerOrOpen(message, fallbackUrl) {
-  const player = await findPlayerTab();
-  if (player) {
+  // A running player that doesn't answer yet (still loading) is asked again for a few seconds:
+  // opening `fallbackUrl` in it would reload it, and its queue would be gone.
+  for (let tries = 0; tries < PLAYER_TELL_TRIES; tries++) {
+    const player = await findPlayerTab();
+    if (!player) break;
     try {
       await chrome.tabs.sendMessage(player.id, message);
-      await showPlayer(player);
-      return;
-    } catch {} // still loading or just closed: open it below
+    } catch {
+      await sleep(PLAYER_TELL_WAIT_MS);
+      continue;
+    }
+    // it has the message: failing to bring it forward must not open it a second time
+    await showPlayer(player).catch((err) => logQuiet("show the player", err));
+    return;
   }
   await openPlayerWindow(fallbackUrl);
 }

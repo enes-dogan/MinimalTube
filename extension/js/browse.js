@@ -117,7 +117,11 @@ const tabScroll = {};
 function setBrowseTab(tab) {
   if (tab !== "playlists") closePlaylistPage();
   const switching = tab !== browseTab;
-  if (switching) tabScroll[browseTab] = browseBody.scrollTop;
+  if (switching) {
+    tabScroll[browseTab] = browseBody.scrollTop;
+    subChipsOpen = false; // the channel list is folded again whenever a tab is left or come back to
+    renderSubChips();
+  }
   browseTab = tab;
   browseTabBtns.forEach((item) =>
     item.classList.toggle("active", item.dataset.tab === tab),
@@ -138,10 +142,16 @@ function setBrowseTab(tab) {
   }
   if (switching) browseBody.scrollTop = tabScroll[tab] || 0;
 }
+// "Subscriptions" pressed on a channel's page: back to the feed of all channels
+function leaveChannelPage(tab) {
+  if (tab === "subs" && browseTab === "subs" && selectedChannel && document.body.classList.contains("browsing"))
+    clearChannelFocus();
+}
 browseTabBtns.forEach((item) =>
   item.addEventListener("click", () => {
     if (item.dataset.tab === "playlists" && browseTab === "playlists")
       closePlaylistPage();
+    leaveChannelPage(item.dataset.tab);
     setBrowseTab(item.dataset.tab);
   }),
 );

@@ -59,10 +59,22 @@ function toggleChannelFilter(ch) {
 function clearChannelFocus() {
   selectedChannel = null;
   tempChannel = null;
-  subChipsOpen = true;
+  subChipsOpen = false;
   renderSubChips();
   showFeed();
 }
+// Esc on a channel's page goes back to the Subscriptions feed (after anything open over it)
+addLayer({
+  el: subFocus,
+  level: 0.5,
+  outside: false,
+  isOpen: () =>
+    !!selectedChannel &&
+    browseTab === "subs" &&
+    document.body.classList.contains("browsing") &&
+    !isTypingTarget(document.activeElement),
+  close: clearChannelFocus,
+});
 
 function chipButton(text, title, onClick) {
   const button = el("button", null, text);
@@ -631,6 +643,12 @@ function renderFeed(marking = false) {
     let card = cards.get(item.id);
     if (card && feedCardText(card._video) !== feedCardText(item)) {
       const update = makeVideoCard(item);
+      // the same video: its picture stays (a new one would blink while it decodes), unless it's
+      // YouTube's small one, shown when the server's couldn't load
+      const oldImg = card._thumb.querySelector(":scope > img"),
+        newImg = update._thumb.querySelector(":scope > img");
+      if (oldImg && newImg && oldImg.src.startsWith(`${serverBase}/thumb/`) && !oldImg.classList.contains("failed"))
+        newImg.replaceWith(oldImg);
       card.replaceWith(update);
       card = update;
     }

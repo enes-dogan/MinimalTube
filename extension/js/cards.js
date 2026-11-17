@@ -17,17 +17,29 @@ whenNetChanges((offline) => {
 // A card's width at each window width (the grid's columns, see browse.css): the browser picks the
 // server's 1280 x 720 thumbnail for anything bigger than the 320 x 180 one
 const CARD_SIZES = "(max-width: 575px) 100vw, (max-width: 883px) 50vw, (max-width: 1695px) 34vw, 25vw";
+// Cards drawn from memory at start come before the server is up (the extension may still be
+// starting it): their thumbnails wait for it instead of failing over to YouTube's small ones.
+let serverAnswered = false;
+serverReady.then(() => (serverAnswered = true));
 function makeThumbImg(url, fallback, large = false) {
   const img = el("img");
   img.loading = "lazy";
   img.decoding = "async";
   img.alt = "";
   img.referrerPolicy = "no-referrer";
-  if (large && url.startsWith(`${serverBase}/thumb/`)) {
-    img.srcset = `${url} 320w, ${url}?size=720 1280w`;
-    img.sizes = CARD_SIZES;
-  }
-  img.src = img._first = url;
+  const base = serverBase,
+    fromServer = url.startsWith(`${base}/thumb/`);
+  const load = () => {
+    // the server may have turned up on another port meanwhile
+    if (fromServer && serverBase !== base) url = serverBase + url.slice(base.length);
+    if (large && fromServer) {
+      img.srcset = `${url} 320w, ${url}?size=720 1280w`;
+      img.sizes = CARD_SIZES;
+    }
+    img.src = img._first = url;
+  };
+  if (fromServer && !serverAnswered) serverReady.then(load);
+  else load();
   img.addEventListener("load", () => img.classList.remove("failed"));
   img.addEventListener("error", () => {
     // the large one isn't there (offline, never fetched): the 320 x 180 one, then YouTube's

@@ -48,16 +48,17 @@ async function stashPlaylist(playlist) {
   return key;
 }
 
-// The watch page's button: the video opens in a new player, with the playlist shown next to it
-// on YouTube (if any) as its queue.
+// The watch page's button: the video opens in the player, with the playlist shown next to it on
+// YouTube (if any) as its queue. Without a playlist a running player keeps its queue: the video
+// plays now and the queue carries on after it, like any YouTube link opened in the app.
 async function openInPlayer(url, playlist) {
   const hasList = playlist && Array.isArray(playlist.items) && playlist.items.length;
   if (hasList && playlist.savePrompt) return openPlaylistToSave(playlist);
   const server = await ensureServerOrNotify();
   if (!server.ok) return server;
-  let playerUrl = `${PLAYER_URL}?url=${encodeURIComponent(url)}`;
-  if (hasList) playerUrl += `&pid=${encodeURIComponent(await stashPlaylist(playlist))}`;
-  await openPlayerWindow(playerUrl);
+  const playerUrl = `${PLAYER_URL}?url=${encodeURIComponent(url)}`;
+  if (hasList) await openPlayerWindow(`${playerUrl}&pid=${encodeURIComponent(await stashPlaylist(playlist))}`);
+  else await tellPlayerOrOpen({ type: "minimaltube-play-now", url }, playerUrl);
   return { ok: true, serverBase: server.serverBase };
 }
 

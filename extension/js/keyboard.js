@@ -327,6 +327,7 @@ document.addEventListener("keydown", (event) => {
     // Shift + a tab's first letter: the browse page on that tab (plain letters are taken)
     event.preventDefault();
     if (!document.body.classList.contains("browsing")) enterBrowse(true);
+    else leaveChannelPage(tab);
     setBrowseTab(tab);
   } else if (event.shiftKey && event.code === "KeyN") {
     event.preventDefault();
