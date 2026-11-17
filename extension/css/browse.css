@@ -624,6 +624,13 @@ body.shiftHeld #browseTabs button::first-letter {
 .vTitle:hover {
   color: var(--text-active);
 }
+/* an @handle in a title: a link to that channel */
+.vTitle .vHandle {
+  color: var(--link);
+}
+.vTitle .vHandle:hover {
+  text-decoration: underline;
+}
 .vSub {
   margin-top: 2px;
   font-size: var(--fs-card-line);

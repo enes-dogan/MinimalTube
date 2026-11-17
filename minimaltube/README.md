@@ -59,7 +59,7 @@ Imports only go down this list, so there are no cycles:
 | `routes_playback.py` | `/prepare`, `/live/…`, `/stream`, `/thumb`, `/subtitles`, `/description`, `/chapters`, `/sponsorblock`, `/channel-of`. |
 | `routes_library.py` | `/state`, `/queue`, `/library`, `/library/order`, `/durations`, `/info`, `DELETE /video`. |
 | `routes_playlists.py` | `/playlists` and everything under it. |
-| `routes_feed.py` | `/subscriptions…`, `/feed`, `/feed/collabs`, `/playlist` (reading a YouTube playlist). |
+| `routes_feed.py` | `/subscriptions…`, `/feed`, `/feed/collabs`, `/channel` (the channel an @handle names), `/playlist` (reading a YouTube playlist). |
 | `routes_system.py` | `/health`, `/net`, `/cache-limit`, `/open-folder`, `/restart`, `/ytdlp/update`. |
 
 ## Conventions

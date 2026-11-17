@@ -1,5 +1,6 @@
 """MinimalTube server - routes for what comes from YouTube's listings: subscriptions, the feed
 of their uploads, collabs, and reading a YouTube playlist."""
+import re
 import time
 
 import yt_dlp
@@ -27,6 +28,7 @@ from .web import ApiError, json_body
 from .ytinfo import ydl
 
 bp = Blueprint("feed", __name__)
+TITLE_HANDLE_RE = re.compile(r"^@[A-Za-z0-9._-]{3,30}$")
 
 
 @bp.route("/playlist")
@@ -106,6 +108,32 @@ def subscriptions_add():
         saved_subscriptions.append(channel)
         write_subscriptions()
     return jsonify({"subscription": subscription_public(channel), "already": False})
+
+
+_handle_channels = {}  # "@handle" in lower case -> the channel it names (looked up once per run)
+
+
+@bp.route("/channel")
+def channel_by_handle():
+    """The channel an @handle names (?handle=@name): {"channel": {"id", "name", "handle", "url"}}.
+    A subscribed channel is answered from the list; any other costs one yt-dlp lookup."""
+    handle = str(request.args.get("handle") or "")
+    if not TITLE_HANDLE_RE.match(handle):
+        raise ApiError("not a channel handle")
+    key = handle.lower()
+    with subs_lock:
+        known = next((c for c in saved_subscriptions if str(c.get("handle") or "").lower() == key), None)
+    if known:
+        return jsonify({"channel": subscription_public(known)})
+    if key not in _handle_channels:
+        try:
+            channel = resolve_channel(f"https://www.youtube.com/{handle}")
+        except (ValueError, yt_dlp.utils.DownloadError) as e:
+            raise ApiError("YouTube has no channel by that name, or couldn't be reached", 404) from e
+        if len(_handle_channels) >= 500:
+            _handle_channels.clear()
+        _handle_channels[key] = channel
+    return jsonify({"channel": subscription_public(_handle_channels[key])})
 
 
 @bp.route("/subscriptions/<chan:channel_id>", methods=["DELETE"])

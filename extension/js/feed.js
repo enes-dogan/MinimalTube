@@ -141,6 +141,23 @@ function openChannel(ch) {
   renderSubChips();
   showFeed();
 }
+// A channel known only by its @handle (named in a video's title): a subscribed one is known
+// already, any other is looked up by the server once.
+const handleChannels = new Map(); // "@handle" in lower case -> {id, name, handle}
+async function openChannelByHandle(handle) {
+  const key = handle.toLowerCase(),
+    known =
+      subscriptions.find((ch) => (ch.handle || "").toLowerCase() === key) || handleChannels.get(key);
+  if (known) return openChannel(known);
+  notify(`Looking up ${handle}…`, false, 4000);
+  try {
+    const data = await api(`/channel?handle=${encodeURIComponent(handle)}`);
+    handleChannels.set(key, data.channel);
+    openChannel(data.channel);
+  } catch (err) {
+    notify(`Couldn't find ${handle}: ${netMessage(firstLine(err.message))}`, true, 4000);
+  }
+}
 async function subscribeTempChannel() {
   const ch = tempChannel;
   if (!ch) return;

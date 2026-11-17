@@ -68,6 +68,26 @@ function refreshFeedDownloadedFlags() {
     paintFeedDownloaded(card);
   });
 }
+// An @handle in a video's title names another channel, as on YouTube: it becomes a link to that
+// channel's page. (Not after a letter or digit: that's an e-mail address.)
+const TITLE_HANDLE_RE = /(^|[^\w@.-])(@[A-Za-z0-9._-]{3,30})/g;
+function fillVideoTitle(titleEl, title) {
+  let at = 0;
+  for (const match of String(title || "").matchAll(TITLE_HANDLE_RE)) {
+    const handle = match[2].replace(/[.-]+$/, ""), // "... with @name." ends a sentence
+      start = match.index + match[1].length;
+    if (handle.length < 4) continue;
+    const link = el("span", "vHandle", handle);
+    link.title = `Latest uploads from ${handle}`;
+    link.addEventListener("click", (event) => {
+      event.stopPropagation(); // not the title's own click (play)
+      openChannelByHandle(handle);
+    });
+    titleEl.append(title.slice(at, start), link);
+    at = start + handle.length;
+  }
+  titleEl.append(String(title || "").slice(at));
+}
 // A card on the browse page (the feed, playlists, a playlist's videos, Downloads): thumbnail with
 // a badge, title, lines under it and a ⋮ menu. The thumbnail and the title both run `open`.
 function makeCard({ thumb, fallback, videoId, badge, video, title, lines = [], open, menu, className }) {
@@ -87,7 +107,9 @@ function makeCard({ thumb, fallback, videoId, badge, video, title, lines = [], o
     paintFeedDownloaded(card);
   }
   thumbEl.addEventListener("click", open);
-  const titleEl = el("div", "vTitle", title);
+  const titleEl = el("div", "vTitle");
+  if (videoId) fillVideoTitle(titleEl, title);
+  else titleEl.textContent = title;
   titleEl.title = title;
   titleEl.addEventListener("click", open);
   const text = el("div", "vText");
