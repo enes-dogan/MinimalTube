@@ -22,16 +22,18 @@ run the installer. The installer needs no admin rights and installs nothing syst
 - **Subscriptions.** Add channels by @handle or link; their new uploads arrive in one
   feed. Click a channel name to see only that channel's videos. The latest 36 videos of up to
   30 channels are remembered, so the feed and channel pages open instantly; new uploads slot in
-  as they're found. The import button next to *Channels* brings over all your YouTube
-  subscriptions at once (you need to be signed in to YouTube in this browser). While you're
+  as they're found. The sync button next to *Channels* keeps them the same as your YouTube
+  subscriptions: a channel added or removed on either side is added or removed on the other
+  (you need to be signed in to YouTube in this browser). While you're
   signed in, collabs show up too: a video a channel you follow made with another channel,
   which YouTube lists only under the channel that uploaded it.
 - **Queue and playlists.** *Add to queue*, drag to reorder, Back / Next. Save the
   queue (or any video) to your own playlists.
 - **Synced with YouTube.** Save one of your YouTube playlists from its page and it stays
-  two-way synced. Finished videos can go to your YouTube history (Settings → *Sync
-  finished videos to YouTube history*; you need to be signed in to YouTube in this
-  browser).
+  two-way synced. Your watch history syncs both ways (Settings → *Sync watch history
+  with YouTube*): finished videos go to your YouTube history, and videos you watched
+  elsewhere, on your phone say, show how far you got here too (you need to be signed in to
+  YouTube in this browser).
 - **Instant start.** *Stream while downloading* starts a video in a second while it
   downloads; *Stream only* just streams (720p, stepping up to 1080p when your connection
   allows) without keeping a copy.

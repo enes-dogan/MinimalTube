@@ -130,7 +130,7 @@ body.shiftHeld #browseTabs button::first-letter {
   box-shadow: var(--focus-ring);
 }
 #feedRefresh,
-#subImportBtn {
+#subSyncBtn {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -146,19 +146,20 @@ body.shiftHeld #browseTabs button::first-letter {
   transition: background 0.15s var(--ease);
 }
 #feedRefresh:hover,
-#subImportBtn:hover:not(:disabled) {
+#subSyncBtn:hover:not(:disabled) {
   background: var(--hover);
 }
-#subImportBtn:disabled {
+#subSyncBtn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 #feedRefresh svg,
-#subImportBtn svg {
+#subSyncBtn svg {
   width: 18px;
   height: 18px;
 }
-#feedRefresh.spinning svg {
+#feedRefresh.spinning svg,
+#subSyncBtn.spinning svg {
   animation: spin 0.9s linear infinite;
 }
 .vThumb img.failed {

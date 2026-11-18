@@ -275,22 +275,111 @@ async function removeSubscription(ch) {
     notify(`Couldn't unsubscribe: ${netMessage(firstLine(err.message))}`, true, 4000);
   }
 }
-// The YouTube account's subscriptions (youtube.com/feed/channels), read by the background. When
-// it can't read them through YouTube's API it opens that page in a tab and reads it there; the
-// result then comes as a message (subscriptionsImported).
-async function importSubscriptions() {
-  if (subImportBtn.disabled) return;
-  subImportBtn.disabled = true;
-  notify("Reading your subscriptions on YouTube…", false, 60000);
-  try {
-    const res = await chrome.runtime.sendMessage({ type: "minimaltube-import-subscriptions" });
-    if (res && res.fromPage) notify("Reading them from YouTube's page in a new tab…", false, 60000);
-    else subscriptionsImported(res);
-  } catch (err) {
-    notify(`Couldn't import your subscriptions: ${firstLine(err.message)}`, true, 6000);
-  } finally {
-    subImportBtn.disabled = false;
+// Sync with the YouTube account signed in to this browser (background/subscriptions.js): channels
+// added or removed on either side change on the other. When the background needs an answer first
+// (an account's first sync, or one that removes many channels) it changes nothing and says so;
+// the "Sync with YouTube" card asks, and the sync runs again with the answer.
+const confirmSync = byId("confirmSync"),
+  csYes = byId("csYes"),
+  csAlt = byId("csAlt"),
+  csNo = byId("csNo"),
+  csKeys = { KeyC: csNo };
+let csTimer = null,
+  csAnswer = null;
+function closeConfirmSync() {
+  clearTimeout(csTimer);
+  csTimer = null;
+  csAnswer = null;
+  confirmSync.classList.remove("show", "run");
+}
+function namesText(names, max = 4) {
+  const shown = names.slice(0, max).join(", ");
+  return names.length > max ? `${shown} and ${names.length - max} more` : shown;
+}
+function setCsButton(button, key, label, choice) {
+  button.hidden = !label;
+  delete csKeys[`Key${key}`];
+  if (!label) return;
+  button.textContent = label;
+  button.append(el("kbd", "kbd", key));
+  button.title = `${label} (${key})`;
+  button.dataset.choice = choice;
+  csKeys[`Key${key}`] = button;
+}
+function askSync(res) {
+  if (res.ask === "first") {
+    byId("csTitle").textContent = `${plural(res.onlyHere.length, "channel")} here ${res.onlyHere.length === 1 ? "isn't" : "aren't"} on YouTube`;
+    byId("csText").textContent = `${namesText(res.onlyHere)}. Subscribe to ${res.onlyHere.length === 1 ? "it" : "them"} on YouTube, or remove ${res.onlyHere.length === 1 ? "it" : "them"} here?`;
+    setCsButton(csYes, "S", "Subscribe on YouTube", "subscribe");
+    setCsButton(csAlt, "R", "Remove here", "remove");
+  } else {
+    const parts = [
+      res.removeHere.length && `remove ${plural(res.removeHere.length, "channel")} here (${namesText(res.removeHere, 3)})`,
+      res.unsubscribe.length && `unsubscribe from ${plural(res.unsubscribe.length, "channel")} on YouTube (${namesText(res.unsubscribe, 3)})`,
+    ].filter(Boolean);
+    byId("csTitle").textContent = "This sync removes a lot";
+    byId("csText").textContent = `It would ${parts.join(" and ")}.`;
+    setCsButton(csYes, "S", "Sync anyway", "confirm");
+    setCsButton(csAlt, "R", "", "");
   }
+  restartAnimation(confirmSync, "show", "run");
+  clearTimeout(csTimer);
+  csTimer = setTimeout(closeConfirmSync, 20000); // no answer = nothing changes
+  csNo.focus();
+}
+[csYes, csAlt].forEach((button) =>
+  button.addEventListener("click", () => {
+    const choice = button.dataset.choice;
+    closeConfirmSync();
+    syncWithYouTube(choice);
+  }),
+);
+csNo.addEventListener("click", () => {
+  closeConfirmSync();
+  notify("Nothing was changed");
+});
+dialogKeys(confirmSync, csKeys);
+addLayer({
+  el: confirmSync,
+  level: 4,
+  outside: false,
+  isOpen: () => confirmSync.classList.contains("show"),
+  close: () => csNo.click(),
+});
+async function syncWithYouTube(choice = null) {
+  if (subSyncBtn.disabled) return;
+  subSyncBtn.disabled = true;
+  subSyncBtn.classList.add("spinning");
+  notify("Syncing your subscriptions with YouTube…", false, 60000);
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "minimaltube-sync-subscriptions", choice });
+    if (res && res.fromPage) notify("Reading your subscriptions from YouTube's page in a new tab (this adds channels, it removes none)…", false, 60000);
+    else if (res && res.ok && res.ask) {
+      toastEl.classList.remove("show");
+      askSync(res);
+    } else subscriptionsSynced(res);
+  } catch (err) {
+    notify(`Couldn't sync with YouTube: ${firstLine(err.message)}`, true, 6000);
+  } finally {
+    subSyncBtn.disabled = false;
+    subSyncBtn.classList.remove("spinning");
+  }
+}
+function subscriptionsSynced(res) {
+  if (!res || !res.ok)
+    return notify(`Couldn't sync with YouTube: ${firstLine((res && res.error) || "no answer")}`, true, 6000);
+  const parts = [
+    res.addedHere && `${res.addedHere} added here`,
+    res.removedHere && `${res.removedHere} removed here`,
+    res.subscribed && `subscribed to ${res.subscribed} on YouTube`,
+    res.unsubscribed && `unsubscribed from ${res.unsubscribed} on YouTube`,
+  ].filter(Boolean);
+  const failed = res.failed && res.failed.length ? ` Couldn't change on YouTube: ${namesText(res.failed)} (the next sync tries again).` : "",
+    later = res.later ? ` ${plural(res.later, "change")} on YouTube left for the next sync.` : "";
+  notify(`${parts.length ? `Synced with YouTube: ${parts.join(", ")}.` : "Already in sync with YouTube."}${failed}${later}`, !!failed, failed ? 9000 : 5000);
+  (res.removedIds || []).forEach((id) => channelFeeds.delete(id) && saveFeedMemorySoon());
+  if (res.removedIds && res.removedIds.includes(selectedChannel)) selectedChannel = null;
+  loadSubscriptions().then(() => showFeed());
 }
 function subscriptionsImported(res) {
   if (!res || !res.ok)
@@ -317,7 +406,7 @@ async function followImport() {
     if (subscriptions.length !== before && !selectedChannel) showFeed();
   }
 }
-subImportBtn.addEventListener("click", importSubscriptions);
+subSyncBtn.addEventListener("click", () => syncWithYouTube());
 subAddBtn.addEventListener("click", addSubscription);
 subAddInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.isComposing) addSubscription();
@@ -467,6 +556,7 @@ function readCollabs(force) {
 async function refreshFeed(force = false) {
   await feedMemoryReady;
   readCollabs(force);
+  if (force) pullYouTubeProgress(true);
   const ids = viewChannelIds().filter((id) => force || feedStale(id));
   if (!ids.length) return finishFeedStatus();
   // the channels most likely to have something new first; never fetched ones before all

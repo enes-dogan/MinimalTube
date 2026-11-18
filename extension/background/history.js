@@ -49,3 +49,35 @@ async function syncWatchedToYouTube(id) {
 }
 
 chrome.runtime.onStartup.addListener(() => flushHistoryPending());
+
+/* ----------------------------------------- watch progress from the YouTube account */
+
+// The other way round: how far videos were watched on YouTube (another device, the phone) comes
+// from the account's history, so the app's progress bars and "watched" follow. Read when the
+// player asks (its start, coming back to the window, the feed's refresh button), at most every
+// PROGRESS_EVERY_MS. Signed out, nothing is asked of YouTube.
+const PROGRESS_EVERY_MS = 15 * 60 * 1000,
+  PROGRESS_RETRY_MS = 60 * 1000,
+  PROGRESS_PAGES = 2;
+let progressReading = null;
+async function readWatchProgress(force) {
+  const none = { ok: true, videos: [] };
+  if (!(await ytAccountCookie())) return none;
+  const now = Date.now(),
+    { progressReadAt = 0, progressTriedAt = 0 } = await chrome.storage.session.get(["progressReadAt", "progressTriedAt"]);
+  if (now - progressTriedAt < PROGRESS_RETRY_MS || (!force && now - progressReadAt < PROGRESS_EVERY_MS)) return none;
+  await chrome.storage.session.set({ progressTriedAt: now });
+  const videos = await ytFetchWatchProgress(PROGRESS_PAGES);
+  if (!videos) return none;
+  await chrome.storage.session.set({ progressReadAt: now });
+  return { ok: true, videos };
+}
+function readWatchProgressOnce(force) {
+  progressReading ??= readWatchProgress(force)
+    .catch((err) => {
+      logQuiet("watch progress from YouTube", err);
+      return { ok: false, videos: [] };
+    })
+    .finally(() => (progressReading = null));
+  return progressReading;
+}

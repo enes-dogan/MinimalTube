@@ -52,14 +52,14 @@ Imports only go down this list, so there are no cycles:
 | `sublang.py` | The caption rule, as pure functions: Turkish videos get Turkish (uploader's, then auto) then English (uploader's); English videos get English (uploader's, then auto); other languages get none. Never a machine translation. |
 | `subtitles.py` | Fetching the captions `sublang.py` picks, and re-checking older downloads when the rule changes (`SUBLANG_RULE`). |
 | `downloads.py` | The job table and everything done to it (`start_download`, `queue_download`, `forget_download`, `job_status`, `active_jobs`), the yt-dlp worker threads, and the Downloads list with its revision (`library_rev`). Routes never touch `jobs` themselves. |
-| `feed.py` | Subscriptions (`subscriptions.json`) and the merged "latest uploads" feed (one channel or all), including the RSS/Shorts date reconciliation. It answers straight away and says `pending` while lookups run, so the app asks again a moment later. Collabs (`collabs.json`): `store_collabs()` keeps the ones the extension read from the signed-in YouTube feed. |
+| `feed.py` | Subscriptions (`subscriptions.json`) and the merged "latest uploads" feed (one channel or all), including the RSS/Shorts date reconciliation. It answers straight away and says `pending` while lookups run, so the app asks again a moment later. Collabs (`collabs.json`): `store_collabs()` keeps the ones the extension read from the signed-in YouTube feed. The state of the last subscription sync per YouTube account (`youtube-sync.json`): `sync_base()`, `set_sync_base()`. |
 | `live.py` | Streaming (while downloading, or Stream only): picks the adaptive formats yt-dlp extracted in `/prepare`, parses each one's segment index (MP4 `sidx` / WebM `Cues`) and proxies byte ranges with yt-dlp's URL and headers. Idle unless the player streams. |
 | `web.py` | What the route modules share: `ApiError` (raise it anywhere under a route: it becomes `{"error": ...}` with its status), the URL converters `<vid:…>`, `<pl:…>`, `<chan:…>` (only valid ids match), `json_body()`, `ids_param()`, `id_list()`, `full_info()`. |
 | `routes.py` | The Flask app: CORS and the Origin check (only the extension's origin is answered from a browser; curl still works), the error handler, the connection header, and the five blueprints. |
 | `routes_playback.py` | `/prepare`, `/live/…`, `/stream`, `/thumb`, `/subtitles`, `/description`, `/chapters`, `/sponsorblock`, `/channel-of`. |
 | `routes_library.py` | `/state`, `/queue`, `/library`, `/library/order`, `/durations`, `/info`, `DELETE /video`. |
 | `routes_playlists.py` | `/playlists` and everything under it. |
-| `routes_feed.py` | `/subscriptions…`, `/feed`, `/feed/collabs`, `/channel` (the channel an @handle names), `/playlist` (reading a YouTube playlist). |
+| `routes_feed.py` | `/subscriptions…` (with `/subscriptions/youtube-sync`: what the last sync with a YouTube account left on both sides), `/feed`, `/feed/collabs`, `/channel` (the channel an @handle names), `/playlist` (reading a YouTube playlist). |
 | `routes_system.py` | `/health`, `/net`, `/cache-limit`, `/open-folder`, `/restart`, `/ytdlp/update`. |
 
 ## Conventions

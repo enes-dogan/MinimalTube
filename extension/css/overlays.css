@@ -249,7 +249,7 @@ body.browsing:has(#backToTop.show) #toast {
   color: var(--muted);
 }
 
-/* ---- Centre dialogs: "Up next", "Unsubscribe?" and "Clear the queue too?" ---- */
+/* ---- Centre dialogs: "Up next", "Unsubscribe?", "Clear the queue too?" and "Sync with YouTube" ---- */
 /* One card, used three times ("Clear the queue too?", #confirmClose, looks and behaves like
    "Unsubscribe?"). "Up next" sits inside the player and counts down for
    5s; "Unsubscribe?" sits over the whole app, counts down for 8s and paints
@@ -257,7 +257,8 @@ body.browsing:has(#backToTop.show) #toast {
    of this section). Everything else is shared. */
 #upNext,
 #confirmUnsub,
-#confirmClose {
+#confirmClose,
+#confirmSync {
   width: min(420px, calc(100% - 48px));
   top: 50%;
   left: 50%;
@@ -283,13 +284,15 @@ body.browsing:has(#backToTop.show) #toast {
   z-index: var(--z-panel);
 }
 #confirmUnsub,
-#confirmClose {
+#confirmClose,
+#confirmSync {
   position: fixed;
   z-index: var(--z-app-popup);
 }
 #upNext.show,
 #confirmUnsub.show,
-#confirmClose.show {
+#confirmClose.show,
+#confirmSync.show {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -301,7 +304,8 @@ body.browsing:has(#backToTop.show) #toast {
 }
 #upNext .unLabel,
 #confirmUnsub .unLabel,
-#confirmClose .unLabel {
+#confirmClose .unLabel,
+#confirmSync .unLabel {
   font-size: var(--fs-xs);
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -310,7 +314,8 @@ body.browsing:has(#backToTop.show) #toast {
 }
 #upNext .unTitle,
 #confirmUnsub .unTitle,
-#confirmClose .unTitle {
+#confirmClose .unTitle,
+#confirmSync .unTitle {
   font-size: var(--fs-xl);
   font-weight: 600;
   line-height: 1.35;
@@ -322,7 +327,8 @@ body.browsing:has(#backToTop.show) #toast {
 }
 #upNext .unCount,
 #confirmUnsub .unCount,
-#confirmClose .unCount {
+#confirmClose .unCount,
+#confirmSync .unCount {
   margin-top: 8px;
   font-size: var(--fs-sm);
   color: var(--muted);
@@ -330,7 +336,8 @@ body.browsing:has(#backToTop.show) #toast {
 }
 #upNext .unActions,
 #confirmUnsub .unActions,
-#confirmClose .unActions {
+#confirmClose .unActions,
+#confirmSync .unActions {
   margin-top: 12px;
   display: flex;
   gap: 8px;
@@ -339,7 +346,8 @@ body.browsing:has(#backToTop.show) #toast {
 /* The countdown bar: full width, shrinking to nothing over the countdown. */
 #upNext .unBar,
 #confirmUnsub .unBar,
-#confirmClose .unBar {
+#confirmClose .unBar,
+#confirmSync .unBar {
   position: absolute;
   left: 0;
   bottom: 0;
@@ -356,6 +364,9 @@ body.browsing:has(#backToTop.show) #toast {
 #confirmClose.run .unBar {
   animation: barShrink 8s linear forwards;
 }
+#confirmSync.run .unBar {
+  animation: barShrink 20s linear forwards;
+}
 @keyframes barShrink {
   from {
     transform: scaleX(1);
@@ -363,6 +374,11 @@ body.browsing:has(#backToTop.show) #toast {
   to {
     transform: scaleX(0);
   }
+}
+
+/* "Sync with YouTube": up to three buttons, so they may wrap */
+#confirmSync .unActions {
+  flex-wrap: wrap;
 }
 
 /* "Unsubscribe?" only: a destructive bar (its button is .btn-danger). */
@@ -646,13 +662,16 @@ body.browsing:has(#backToTop.show) #toast {
 #undoBar .ubUndo .kbd,
 #upNext .unActions .kbd,
 #confirmUnsub .unActions .kbd,
-#confirmClose .unActions .kbd {
+#confirmClose .unActions .kbd,
+#confirmSync .unActions .kbd {
   margin-left: 7px;
 }
 /* on a coloured button the hint takes the button's own text colour */
 #upNext .btn-primary .kbd,
 #confirmUnsub .btn-danger .kbd,
-#confirmClose .btn-danger .kbd {
+#confirmClose .btn-danger .kbd,
+#confirmSync .btn-primary .kbd,
+#confirmSync .btn-danger .kbd {
   border-color: currentColor;
   background: transparent;
   color: inherit;

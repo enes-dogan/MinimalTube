@@ -14,7 +14,7 @@ one big file would: no imports, no build step. A name can be declared only once 
 | `playback.js` | `playVideo` (prepare, streaming, handover to the downloaded file), `stopPlayback`, SponsorBlock, captions, seek / volume / speed / fullscreen basics, the system's media controls (Media Session). |
 | `settings.js` | The Settings card: its switches (one line each in `SETTINGS`, saved as they're flipped), the window / tab switch, the downloads' size cap, and the server's buttons (videos folder, restart, update yt-dlp; `reloadFromServer()`). |
 | `queue.js` | **The queue's home.** Its state (`queue`, `queueIndex`, `playSource`) and every way of changing it: `setQueue`, `appendToQueue`, `queueVideoLast`, `playVideoNow`, `moveQueueItem`, `removeQueueItem`, `clearQueue`, `addUrlToQueue` (links and pasting), `playQueueItem`, Back / Next (`resolveNext`, `skipVideo`), "Remember queue", the saved playlist behind the queue, Download all. After any change: `queueChanged()`. |
-| `watch-progress.js` | Where each video was stopped, the red bar on thumbnails, and sending finished videos to YouTube history. |
+| `watch-progress.js` | Where each video was stopped, the red bar on thumbnails, and the YouTube history both ways: finished videos are sent there, progress made elsewhere comes back (`takeYouTubeProgress`). |
 | `undo.js` | The Undo bar (`offerUndo`). |
 | `reorder.js` | `makeSortable()`: drag to reorder, for the side panel's rows (by their grip) and the card grids. |
 | `menus.js` | The ⋮ menus: `openMenu()` for both (`rowMenu` in the side panel, `bpMenu` over the browse page), `menuButton()`, `placePopup()`, right-click, and the "Save to playlist" list (`saveToEntry`). |
@@ -24,7 +24,7 @@ one big file would: no imports, no build step. A name can be declared only once 
 | `playlists.js` | Saved playlists: loading one into the queue, deleting one (with Undo), the "Save as playlist" dialog. |
 | `browse.js` | The browse page and mini player: tabs, moving the side panel over the page, the page's round buttons, back to top, sticky bars, the mini player's own buttons. |
 | `cards.js` | The browse page's cards: `makeThumbImg`, `makeCard`, `videoCardLines`, `makeVideoCard`. |
-| `feed.js` | Subscriptions and the feed. Every channel remembers its newest 36 videos (30 channels, saved a moment after changes); a channel's page and the Subscriptions feed are drawn from that at once, then each channel is asked again in the background and the cards are updated in place. Importing the YouTube account's subscriptions; collabs. |
+| `feed.js` | Subscriptions and the feed. Every channel remembers its newest 36 videos (30 channels, saved a moment after changes); a channel's page and the Subscriptions feed are drawn from that at once, then each channel is asked again in the background and the cards are updated in place. Syncing the subscriptions with the YouTube account (the "Sync with YouTube" card asks when it must); collabs. |
 | `playlists-tab.js` | The Playlists tab: the playlists' cards, a playlist's page (its cards' channel / views / age come from `/info`), YouTube playlist sync. |
 | `downloads-tab.js` | The Downloads tab's cards. |
 | `keyboard.js` | Keyboard navigation in lists (`makeRovingList`), inside the ⋮ menus, the skip link, and the keys of the player and the app. |

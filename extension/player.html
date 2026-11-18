@@ -345,8 +345,8 @@
                 <span id="subsToggleCount"></span>
                 <svg class="stChevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z" /></svg>
               </button>
-              <button id="subImportBtn" type="button" title="Import your YouTube subscriptions" aria-label="Import your YouTube subscriptions">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3a2 2 0 0 0-2 2v4h2V5h18v14H3v-4H1v4a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM11 16l4-4-4-4v3H1v2h10v3z" /></svg>
+              <button id="subSyncBtn" type="button" title="Sync with YouTube: channels added or removed on either side change on the other" aria-label="Sync subscriptions with YouTube">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" /></svg>
               </button>
             </div>
             <div id="subFocus"></div>
@@ -407,6 +407,18 @@
       </div>
       <div class="unBar"></div>
     </div>
+    <!-- Asked before a sync with YouTube removes many channels, and on an account's first sync -->
+    <div id="confirmSync" role="alertdialog" aria-labelledby="csTitle">
+      <div class="unLabel">Sync with YouTube</div>
+      <div class="unTitle" id="csTitle"></div>
+      <div class="unCount" id="csText"></div>
+      <div class="unActions">
+        <button id="csYes" class="btn btn-sm btn-primary" type="button"></button>
+        <button id="csAlt" class="btn btn-sm btn-danger" type="button"></button>
+        <button id="csNo" class="btn btn-sm btn-ghost" type="button" title="Cancel (C)" aria-keyshortcuts="C">Cancel<kbd class="kbd">C</kbd></button>
+      </div>
+      <div class="unBar"></div>
+    </div>
     <!-- Asked when Esc closes the player while more videos wait in the queue -->
     <div id="confirmClose" role="alertdialog" aria-labelledby="ccTitle">
       <div class="unLabel">Closing the player</div>
@@ -458,7 +470,7 @@
               <label class="switch"><input id="ytLinksToggle" type="checkbox" /><span class="track"></span></label>
             </div>
             <div class="checkrow">
-              <span>Sync finished videos to YouTube history</span>
+              <span>Sync watch history with YouTube (both ways)</span>
               <label class="switch"><input id="ytHistoryToggle" type="checkbox" /><span class="track"></span></label>
             </div>
             <div class="checkrow">

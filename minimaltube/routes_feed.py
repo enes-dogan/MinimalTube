@@ -17,6 +17,8 @@ from .feed import (
     parse_channel_input,
     resolve_channel,
     saved_subscriptions,
+    set_sync_base,
+    sync_base,
     store_collabs,
     subs_lock,
     subscription_public,
@@ -82,6 +84,25 @@ def subscriptions_import():
         raise ApiError('expected a JSON body like {"channels": [{"id": "UC...", "name": "...", '
                        '"handle": "@..."}, ...]}')
     return jsonify(import_subscriptions(channels))
+
+
+@bp.route("/subscriptions/youtube-sync", methods=["GET"])
+def subscriptions_sync_get():
+    """What the last sync with a YouTube account left on both sides: {"base": [ids] or null}."""
+    return jsonify({"base": sync_base(str(request.args.get("account") or ""))})
+
+
+@bp.route("/subscriptions/youtube-sync", methods=["PUT"])
+def subscriptions_sync_put():
+    """Remember what a sync left on both sides: {"account": key, "base": ["UC…", …]}."""
+    data = json_body()
+    if not isinstance(data.get("base"), list):
+        raise ApiError('expected {"account": "...", "base": ["UC...", ...]}')
+    try:
+        set_sync_base(str(data.get("account") or ""), data["base"])
+    except ValueError as e:
+        raise ApiError(str(e)) from e
+    return jsonify({"status": "ok"})
 
 
 @bp.route("/subscriptions", methods=["POST"])

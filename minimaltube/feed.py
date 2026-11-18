@@ -583,3 +583,43 @@ def import_subscriptions(channels) -> dict:
     return {"added": len(added), "already": already, "resolving": len(handles)}
 
 load_collabs()
+
+# ---- Syncing subscriptions with a YouTube account ----
+# What the subscriptions here and on a YouTube account had in common after their last sync (the
+# extension's three-way merge needs it), per account: keys are hashes the extension makes from
+# the account's id, so accounts signed in to different browser profiles don't mix.
+SYNC_ACCOUNT_RE = re.compile(r"^(default|[0-9a-f]{8,40})$")
+_sync_lock = threading.Lock()
+
+def _sync_path() -> Path:
+    return DATA_DIR / "youtube-sync.json"
+
+def sync_base(account: str) -> list | None:
+    """The channel ids an account's last subscription sync left on both sides; None before the
+    first sync (or for an account key that isn't valid)."""
+    if not SYNC_ACCOUNT_RE.match(account or ""):
+        return None
+    with _sync_lock:
+        entry = (read_json(_sync_path(), {}).get("subscriptions") or {}).get(account)
+    return [c for c in entry["base"] if CHANNEL_ID_RE.match(str(c))] if isinstance(entry, dict) and isinstance(entry.get("base"), list) else None
+
+def set_sync_base(account: str, base: list) -> None:
+    """Remember what an account's subscription sync left on both sides.
+
+    Args:
+        account (str): The extension's key for the YouTube account ("default" or a hex hash).
+        base (list[str]): Channel ids ("UC…"); anything else is dropped.
+
+    Raises:
+        ValueError: The account key isn't valid.
+    """
+    if not SYNC_ACCOUNT_RE.match(account or ""):
+        raise ValueError("not a valid account key")
+    ids = list(dict.fromkeys(str(c) for c in base if CHANNEL_ID_RE.match(str(c))))
+    with _sync_lock:
+        data = read_json(_sync_path(), {})
+        data = data if isinstance(data, dict) else {}
+        accounts = data.get("subscriptions") if isinstance(data.get("subscriptions"), dict) else {}
+        accounts[account] = {"base": ids, "at": time.time()}
+        data["subscriptions"] = accounts
+        write_json_atomic(_sync_path(), data, "feed")

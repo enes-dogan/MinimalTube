@@ -47,6 +47,7 @@ function parseYtcfg(html) {
     visitorData: pick(/"VISITOR_DATA":"([^"]+)"/),
     sessionIndex: pick(/"SESSION_INDEX":"?(\d+)"?/) || "0",
     delegatedSessionId: pick(/"DELEGATED_SESSION_ID":"([^"]+)"/),
+    datasyncId: pick(/"DATASYNC_ID":"([^"]+)"/),
   };
 }
 
@@ -354,14 +355,18 @@ async function ytEditPlaylist(listId, cfg, actions) {
 
 /* ------------------------------------------------------------- subscriptions */
 
-// One page of youtube.com/feed/channels (or a continuation of it): its channels and the token for
-// the next page. There a channel's "subscriberCountText" is its @handle, not a count.
+// One page of youtube.com/feed/channels (or a continuation of it): its channels, each channel's
+// unsubscribe request as its button would send it, and the token for the next page. There a
+// channel's "subscriberCountText" is its @handle, not a count.
 function parseChannelList(data) {
-  const channels = [];
+  const channels = [],
+    unsubscribe = new Map();
   let token = null;
   walkJson(data, (node) => {
     const ch = node.channelRenderer;
     if (ch && /^UC[\w-]{22}$/.test(ch.channelId || "")) {
+      const request = subscriptionRequest(ch.subscribeButton, "unsubscribe", ch.channelId);
+      if (request) unsubscribe.set(ch.channelId, request);
       const shown = ch.subscriberCountText?.simpleText || "",
         path = ch.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || "";
       let handle = shown.startsWith("@") ? shown : null;
@@ -378,10 +383,18 @@ function parseChannelList(data) {
     if (node.continuationItemRenderer)
       token = continuationToken(node.continuationItemRenderer) || token;
   });
-  return { channels, token };
+  return { channels, unsubscribe, token };
 }
 
-// Every channel the signed-in account is subscribed to: [{id, name, handle}].
+/**
+ * Every channel the account signed in to this browser profile is subscribed to.
+ * @returns {Promise<{cfg: object, account: string, channels: Array<{id: string, name: string,
+ *   handle: ?string}>, unsubscribe: Map<string, {path: string, body: object}>}>} The page's
+ *   InnerTube settings (for changes made afterwards), a key that tells accounts apart (a hash,
+ *   "default" when the page doesn't name the account), the channels, and each channel's
+ *   unsubscribe request as YouTube's own button would send it (when the page has one).
+ * @throws {Error} When nobody is signed in ("not signed in …"), or the page can't be read.
+ */
 async function ytFetchSubscriptions() {
   const res = await fetch(`${YT_ORIGIN}/feed/channels?hl=en`, { credentials: "include" });
   if (!res.ok) throw new Error(`subscriptions page returned ${res.status}`);
@@ -390,15 +403,71 @@ async function ytFetchSubscriptions() {
   if (!cfg.loggedIn) throw new Error("not signed in to YouTube in this browser profile");
   const data = extractJsonAfter(html, "ytInitialData = {");
   if (!data) throw new Error("couldn't read the subscriptions page");
-  const found = new Map();
+  const found = new Map(),
+    unsubscribe = new Map();
   let page = parseChannelList(data);
   for (let pages = 1; ; pages++) {
     page.channels.forEach((ch) => found.has(ch.id) || found.set(ch.id, ch));
+    page.unsubscribe.forEach((request, id) => unsubscribe.set(id, request));
     if (!page.token || pages >= 100) break;
     page = parseChannelList(await innertube("browse", cfg, { continuation: page.token }));
   }
   if (!found.size) throw new Error("no channels found on the subscriptions page");
-  return [...found.values()];
+  const account = cfg.datasyncId ? (await sha1Hex(cfg.datasyncId)).slice(0, 16) : "default";
+  return { cfg, account, channels: [...found.values()], unsubscribe };
+}
+
+// What YouTube's subscribe / unsubscribe button sends, found in its own page data: the endpoint's
+// body (channelIds, params) and its API path. Only these two paths are ever used from page data.
+const SUBSCRIPTION_PATHS = { subscribe: "subscription/subscribe", unsubscribe: "subscription/unsubscribe" };
+// What a well-known InnerTube client (LuanRT/YouTube.js) sends when the page has no such button.
+const SUBSCRIPTION_PARAMS = { subscribe: "EgIIAhgA", unsubscribe: "CgIIAhgA" };
+function subscriptionRequest(data, kind, channelId) {
+  let request = null;
+  walkJson(data, (node) => {
+    const endpoint = node[`${kind}Endpoint`];
+    if (request || !endpoint || !(endpoint.channelIds || []).includes(channelId)) return;
+    const path = String(node.commandMetadata?.webCommandMetadata?.apiUrl || "").replace(/^\/youtubei\/v1\//, "");
+    if (path && path !== SUBSCRIPTION_PATHS[kind]) return;
+    request = { path: SUBSCRIPTION_PATHS[kind], body: { channelIds: [channelId], params: endpoint.params } };
+  });
+  return request;
+}
+// Did YouTube's answer say the channel is now (un)subscribed? Older answers update the button,
+// newer ones the subscription's state entity. null: the answer doesn't say either way.
+function subscriptionConfirmed(data, subscribed) {
+  let said = null;
+  walkJson(data, (node) => {
+    const state = node.updateSubscribeButtonAction || node.subscriptionStateEntity;
+    if (state && typeof state.subscribed === "boolean") said ??= state.subscribed === subscribed;
+  });
+  return said;
+}
+
+/**
+ * Subscribes the signed-in account to a channel, or unsubscribes it, the way YouTube's own
+ * button does: with the request found in YouTube's page data (`known`, or the channel's page
+ * asked for it), else with the request a well-known InnerTube client sends.
+ * @param {object} cfg InnerTube settings from ytFetchSubscriptions (a signed-in page).
+ * @param {"subscribe"|"unsubscribe"} kind
+ * @param {string} channelId "UC…".
+ * @param {{path: string, body: object}} [known] The request from the subscriptions page.
+ * @returns {Promise<?boolean>} true when YouTube's answer confirms it, false when it says
+ *   otherwise, null when the answer doesn't say (re-reading the subscriptions tells).
+ * @throws {Error} When YouTube refuses the request.
+ */
+async function ytSetSubscription(cfg, kind, channelId, known) {
+  let request = known;
+  if (!request && kind === "subscribe") {
+    try {
+      request = subscriptionRequest(await innertube("browse", cfg, { browseId: channelId }), kind, channelId);
+    } catch (err) {
+      logQuiet("reading the channel's subscribe button", err);
+    }
+  }
+  request ??= { path: SUBSCRIPTION_PATHS[kind], body: { channelIds: [channelId] } };
+  request.body.params ||= SUBSCRIPTION_PARAMS[kind];
+  return subscriptionConfirmed(await innertube(request.path, cfg, request.body), kind === "subscribe");
 }
 
 /* ------------------------------------------------------------- collabs */
@@ -542,6 +611,75 @@ async function ytFetchCollabs(pages) {
       page = parseCollabPage(await innertube("browse", cfg, { continuation: page.token }));
     } catch {
       break; // the newer pages' collabs are worth keeping
+    }
+  }
+  return [...found.values()];
+}
+
+/* ------------------------------------------------------------- watch progress */
+
+// One card of the account's watch history -> {id, percent, duration} when YouTube shows how far
+// it was watched (the red bar), else null. Lockups carry it as a progress bar overlay, older
+// videoRenderers as a "resume playback" overlay.
+function progressVideo(card) {
+  const lockup = card.lockupViewModel,
+    renderer = card.videoRenderer;
+  let id, percent, lengthText;
+  if (lockup?.contentType === "LOCKUP_CONTENT_TYPE_VIDEO") {
+    id = lockup.contentId;
+    walkJson(lockup.contentImage, (node) => {
+      percent ??= node.thumbnailOverlayProgressBarViewModel?.startPercent;
+      lengthText ??= node.thumbnailBadgeViewModel?.text;
+    });
+  } else if (renderer?.videoId) {
+    id = renderer.videoId;
+    walkJson(renderer.thumbnailOverlays, (node) => {
+      percent ??= node.thumbnailOverlayResumePlaybackRenderer?.percentDurationWatched;
+    });
+    lengthText = renderer.lengthText?.simpleText;
+  } else return null;
+  percent = Number(percent);
+  if (!/^[\w-]{11}$/.test(id || "") || !(percent > 0)) return null;
+  return { id, percent: Math.min(100, percent), duration: parseDuration(lengthText) || null };
+}
+
+/**
+ * How far the account signed in to this browser profile has watched the videos of its YouTube
+ * history (youtube.com/feed/history), newest first: what was watched on another device.
+ * @param {number} pages How many pages of the history to read (a page is a few dozen videos).
+ * @returns {Promise<Array<{id: string, percent: number, duration: ?number}>|null>} Each video
+ *   once, with YouTube's watched percentage (1 to 100) and its length in seconds when shown.
+ *   null when no account is signed in (nothing is asked of YouTube then); empty when the
+ *   history is paused or empty.
+ */
+async function ytFetchWatchProgress(pages) {
+  if (!(await ytAccountCookie())) return null;
+  const res = await fetch(`${YT_ORIGIN}/feed/history?hl=en`, { credentials: "include", redirect: "manual" });
+  if (res.type === "opaqueredirect") return null;
+  if (!res.ok) throw new Error(`history page returned ${res.status}`);
+  const html = await res.text();
+  const cfg = parseYtcfg(html);
+  if (!cfg.loggedIn) return null;
+  const data = extractJsonAfter(html, "ytInitialData = {");
+  if (!data) throw new Error("couldn't read the history page");
+  const found = new Map();
+  const readPage = (pageData) => {
+    let token = null;
+    walkJson(pageData, (node) => {
+      if (node.lockupViewModel || node.videoRenderer) {
+        const video = progressVideo(node);
+        if (video && !found.has(video.id)) found.set(video.id, video);
+      }
+      if (node.continuationItemRenderer) token = continuationToken(node.continuationItemRenderer) || token;
+    });
+    return token;
+  };
+  let token = readPage(data);
+  for (let read = 1; token && read < pages && cfg.clientVersion; read++) {
+    try {
+      token = readPage(await innertube("browse", cfg, { continuation: token }));
+    } catch {
+      break; // the newer pages are worth keeping
     }
   }
   return [...found.values()];

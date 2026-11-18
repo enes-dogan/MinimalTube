@@ -6,9 +6,9 @@
  *   links.js           YouTube links into the player: right-click entries, "Open YouTube
  *                      videos in MinimalTube", the buttons on YouTube's pages
  *   youtube.js         everything that talks to youtube.com
- *   history.js         finished videos to the YouTube watch history
+ *   history.js         finished videos to the YouTube watch history, progress back from it
  *   playlist-sync.js   saved playlists kept in sync with the YouTube account's
- *   subscriptions.js   importing the account's subscriptions; collabs from its feed
+ *   subscriptions.js   subscriptions kept in sync with the account's; collabs from its feed
  *
  * js/common.js is shared with the player, the popup and the content script. All of these share
  * this worker's one scope (importScripts), so a name can be declared only once among them.
@@ -62,12 +62,14 @@ const MESSAGES = {
     flushYtSyncPending();
   },
   "minimaltube-mark-watched": (msg) => (msg.id ? syncWatchedToYouTube(msg.id) : IGNORED),
+  "minimaltube-read-watch-progress": (msg) => readWatchProgressOnce(!!msg.force),
   "minimaltube-yt-link": (msg) =>
     PLAYLIST_ID_RE.test(msg.playlistId) && msg.listId
       ? runYtPlaylistTask(() => linkPlaylistToYouTube(msg.playlistId, String(msg.listId)))
       : IGNORED,
   "minimaltube-yt-sync": (msg) => (PLAYLIST_ID_RE.test(msg.playlistId) ? syncPlaylistTask(msg.playlistId) : IGNORED),
-  "minimaltube-import-subscriptions": () => importSubscriptions(),
+  "minimaltube-sync-subscriptions": (msg) =>
+    syncSubscriptions(["subscribe", "remove", "confirm"].includes(msg.choice) ? msg.choice : null),
   "minimaltube-read-collabs": (msg) => readCollabsOnce(!!msg.force),
 
   // ---- from the popup

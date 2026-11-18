@@ -119,3 +119,31 @@ video.addEventListener("timeupdate", () => {
 video.addEventListener("pause", () => noteWatchProgress());
 video.addEventListener("ended", () => noteWatchProgress());
 window.addEventListener("pagehide", () => noteWatchProgress());
+
+// The other way round (background/history.js): a video the YouTube account's history shows further
+// along than here (watched on the phone, say) moves on here too. Progress only ever moves forward,
+// and a video taken this way isn't sent back to YouTube's history.
+function takeYouTubeProgress(videos) {
+  let changed = false;
+  videos.forEach(({ id, percent, duration }) => {
+    const entry = watchMap[id],
+      d = (entry && entry.d) || duration;
+    if (!(d > 0) || !(percent > 0)) return;
+    const p = Math.min(d, (percent / 100) * d);
+    if (entry && entry.p >= p - 1) return;
+    watchMap[id] = { p: Math.round(p * 10) / 10, d: Math.round(d * 10) / 10, t: Date.now(), s: 1 };
+    changed = true;
+  });
+  if (!changed) return;
+  saveWatchMap();
+  refreshWatchBars();
+}
+function pullYouTubeProgress(force = false) {
+  if (!ytHistorySync) return;
+  chrome.runtime.sendMessage({ type: "minimaltube-read-watch-progress", force }, (res) => {
+    if (chrome.runtime.lastError || !res || !Array.isArray(res.videos)) return;
+    takeYouTubeProgress(res.videos);
+  });
+}
+whenLoaded(() => setTimeout(pullYouTubeProgress, 3000)); // after the settings are read (startup.js)
+document.addEventListener("visibilitychange", () => document.hidden || pullYouTubeProgress());
