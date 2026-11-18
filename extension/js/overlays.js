@@ -213,6 +213,7 @@ const WELCOME_FEATURES = [
   ["⬇", "Downloads", "Everything you downloaded plays offline. Delete a file, a playlist or remove a video from a list, or clear the queue; the bar in the corner (or <b>U</b>) undoes it for 5 seconds."],
   ["⚡", "Instant start", "Settings → <b>Stream while downloading</b> starts videos in a second while they download; <b>Stream only</b> just streams, at up to 1080p, without keeping a copy."],
   ["⏱", "Picks up where you left off", "Videos resume where you stopped; playback speed and volume are remembered too. Captions and chapters come along."],
+  ["◐", "Your colours", "Settings → <b>Appearance</b> has six colour themes: Violet, Crimson, Clay, Mint, Sky and Sakura. The app, its logo and its icon on your computer change with it."],
   ["⌨", "Made for the keyboard", "The whole app works from the keyboard: Tab, the arrow keys and Enter; every ⋮ menu has letter keys, and right-click opens the same menu."],
 ];
 let welcomeEl = null;
