@@ -5,6 +5,9 @@ Chrome talks to this script over native messaging (one JSON message in, one out)
   {"action": "start-server", "port": N}   start MinimalTube's server.py if needed
   {"action": "ping"}
 
+Before it starts a server it waits for an update that is being installed, and has one that was
+cut off finished or undone (minimaltube/updater.py recover).
+
 `minimaltube_host.py --start-server [PORT]` does the same from a terminal or launcher.
 
 The installer registers it with the browsers through a small launcher that runs it with the
@@ -17,6 +20,7 @@ import argparse
 import json
 import os
 import struct
+import subprocess
 import sys
 import time
 import urllib.request
@@ -30,11 +34,17 @@ from minimaltube.system import (  # noqa: E402
     SERVER_PORT,
     SERVER_PORTS,
     WINDOWS,
+    app_dir,
     cache_dir,
     port_is_free,
     spawn_detached,
     use_own_tools,
 )
+
+try:
+    from minimaltube.system import pid_alive  # noqa: E402
+except ImportError:  # a folder an update was cut off in the middle of
+    pid_alive = None
 
 
 def _read_message() -> dict | None:
@@ -78,12 +88,56 @@ def server_is_healthy(port: int) -> bool:
         return False
 
 
+def _read_journal(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def finish_update() -> None:
+    """While an update is being installed MinimalTube's folder is half replaced, so no server may
+    start from it: wait for the update (up to 3 minutes; it starts the server itself). One that
+    was cut off (a crash, a shutdown) is finished or undone first by its own updater."""
+    path = app_dir() / "updates" / "journal.json"
+    journal = _read_journal(path)
+    unfinished = lambda j: j.get("phase") not in (None, "done", "failed")  # noqa: E731
+    if not unfinished(journal):
+        return
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        pid = journal.get("pid")
+        running = (pid_alive(pid) if pid_alive and isinstance(pid, int) and pid > 0
+                   else time.time() - (journal.get("started") or 0) < 30)
+        if not running:
+            break
+        time.sleep(0.5)
+        journal = _read_journal(path)
+        if not unfinished(journal):
+            return
+    runner = Path(str(journal.get("runner") or ""))
+    if not runner.is_file():
+        runner = Path(__file__).resolve().parent / "minimaltube" / "updater.py"
+    log_dir = cache_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_dir / "server.log", "ab") as log:  # never our stdout: it's the channel to the browser
+        try:
+            subprocess.run([sys.executable, "-X", "utf8", "-I", "-B", str(runner), "recover"],
+                           cwd=str(runner.parent), stdin=subprocess.DEVNULL, stdout=log, stderr=log, timeout=120)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            log.write(f"[update] couldn't finish the cut-off update: {e}\n".encode())
+
+
 def start_server(port: int) -> dict:
     """Start the server unless it already runs on one of its ports; the answer's "port" says
     where it is."""
     # another program may hold the preferred port: the server then takes the next free one
     ports = range(port, port + SERVER_PORTS)
     running = next((p for p in ports if server_is_healthy(p)), None)
+    if running is None:
+        finish_update()  # an update under way starts the server itself
+        running = next((p for p in ports if server_is_healthy(p)), None)
     if running is not None:
         return {"ok": True, "already_running": True, "port": running}
     port = next((p for p in ports if port_is_free("127.0.0.1", p)), None)

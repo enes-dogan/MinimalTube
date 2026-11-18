@@ -1,0 +1,20 @@
+# A pushed tag v* (v1.3.0): check the release (release-check.py), then draft it on GitHub with
+# generated notes. Publishing the draft (Releases -> the draft -> Edit -> Publish release) is what
+# makes installed copies of MinimalTube offer the update.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the release
+        run: python3 .github/release-check.py "$GITHUB_REF_NAME"
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes --title "MinimalTube ${GITHUB_REF_NAME#v}"

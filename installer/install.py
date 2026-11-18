@@ -16,6 +16,8 @@ on, then run this with it:
 No step needs admin rights. Run it again after moving this folder.
 
     python install.py [<extension id> ...]   (an id only for a copy without manifest.json's "key")
+    python install.py --from-update          (run by MinimalTube's updater after an update changed
+                                              the installer: steps 2 to 4 only)
 """
 from __future__ import annotations  # `str | None` annotations on Python 3.9
 
@@ -40,7 +42,8 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from minimaltube.system import (  # noqa: E402
-    EXTENSION_DIR, MACOS, PROJECT_DIR, WINDOWS, app_dir, bin_dir, extension_id, installer_hint, use_own_tools)
+    EXTENSION_DIR, MACOS, PROJECT_DIR, WINDOWS, app_dir, bin_dir, extension_id, installer_hint, use_own_tools,
+    uses_own_python)
 
 HOST_NAME = "com.minimaltube.host"
 ID_RE = re.compile(r"^[a-p]{32}$")
@@ -88,20 +91,13 @@ def extension_ids(argv: list[str]) -> list[str]:
 
 
 # ---------------------------------------------------------------- the server's Python
-def own_python_in_use() -> bool:
-    try:
-        return Path(sys.prefix).resolve().is_relative_to((app_dir() / "python").resolve())
-    except OSError:
-        return False
-
-
 def pip_install(*args: str) -> None:
     subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "--no-input",
                     "--disable-pip-version-check", "--quiet", *args], check=True)
 
 
 def server_packages() -> None:
-    if not own_python_in_use():
+    if not uses_own_python():
         # a system Python (Linux): its packages come from the package manager
         missing = [m for m in ("flask", "flask_cors") if importlib.util.find_spec(m) is None]
         if missing:
@@ -383,7 +379,7 @@ def host_launcher() -> Path:
             f"HOST = {str(host)!r}\n"
             "sys.argv[0] = HOST\n"
             "runpy.run_path(HOST, run_name='__main__')\n")
-        python = "%~dp0python\\python.exe" if own_python_in_use() else sys.executable.replace("%", "%%")
+        python = "%~dp0python\\python.exe" if uses_own_python() else sys.executable.replace("%", "%%")
         bat = folder / "minimaltube-host.bat"
         write_if_changed(
             bat,
@@ -576,16 +572,34 @@ def app_launcher(found: list[dict], ext_id: str) -> None:
 
 
 # ---------------------------------------------------------------- main
+def folder_writable() -> bool:
+    probe = PROJECT_DIR / f".minimaltube-write-test-{os.getpid()}"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def main(argv: list[str]) -> int:
     use_own_tools()
+    # after an update (updater.py): the updater saw to the Python packages, yt-dlp is in place
+    from_update = "--from-update" in argv
+    argv = [a for a in argv if a != "--from-update"]
     ids = extension_ids(argv)
     say(f"Extension ID: {ids[0]}")
     say(f"Python for the server: {sys.executable}"
-        + (" (MinimalTube's own)" if own_python_in_use() else ""))
+        + (" (MinimalTube's own)" if uses_own_python() else ""))
     if not (PROJECT_DIR / "server.py").is_file():
         warn(f"server.py isn't in {PROJECT_DIR}: the extension can't start the server.")
-    server_packages()
-    own_ytdlp()
+    if not folder_writable():
+        warn(f"{PROJECT_DIR} can't be written to without admin rights, so MinimalTube can't update "
+             "itself there (Settings -> Updates). Move the folder somewhere of your own, your user "
+             "folder say, and run the installer from there.")
+    if not from_update:
+        server_packages()
+        own_ytdlp()
     tools()
     found = browsers()
     if not found:
@@ -606,6 +620,8 @@ def main(argv: list[str]) -> int:
         say("Finished, with warnings (above).")
     else:
         say("Done.")
+    if from_update:
+        return 0
     say("If MinimalTube isn't in your browser yet: open chrome://extensions, turn on Developer mode,")
     say(f"click Load unpacked and pick this folder: {EXTENSION_DIR}")
     say("If it is: reload it there.")

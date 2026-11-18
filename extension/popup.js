@@ -53,3 +53,23 @@ urlInput.addEventListener("keydown", (event) => {
 });
 openAppBtn.addEventListener("click", () => openPlayer("window"));
 document.getElementById("openTab").addEventListener("click", () => openPlayer("tab"));
+
+// A newer MinimalTube is out (the server checks GitHub): the player opens with its update card.
+const updateLine = document.getElementById("updateLine");
+(async () => {
+  const { serverBase } = await chrome.storage.local.get(["serverBase"]);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 1500);
+  try {
+    const res = await fetch(`${serverBase || DEFAULT_SERVER}/update/status`, { signal: ctrl.signal });
+    const status = await res.json();
+    if (!status.available || status.blocked || !status.latest) return;
+    updateLine.textContent = `MinimalTube ${status.latest.version} is out: update`;
+    updateLine.hidden = false;
+  } catch {} // no server, or one from before updates: nothing to show
+})();
+updateLine.addEventListener("click", async () => {
+  await chrome.storage.local.set({ showUpdate: Date.now() });
+  chrome.runtime.sendMessage({ type: "minimaltube-open-window", playerUrl: chrome.runtime.getURL("player.html") });
+  window.close();
+});

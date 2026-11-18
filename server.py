@@ -95,15 +95,18 @@ def main():
     from minimaltube.cache import cache_limit_gb, cache_maintenance_loop, run_cache_maintenance
     from minimaltube.downloads import download_worker, resume_running_downloads
     from minimaltube.routes import app
+    from minimaltube.system import app_version
+    from minimaltube.updater import check_loop
 
     run_cache_maintenance()
     threading.Thread(target=cache_maintenance_loop, daemon=True).start()
+    threading.Thread(target=check_loop, daemon=True).start()  # updates from GitHub
 
     for _ in range(MAX_PARALLEL_DOWNLOADS):
         threading.Thread(target=download_worker, daemon=True).start()
     resume_running_downloads()
 
-    print(f"MinimalTube server running at http://{args.host}:{args.port}")
+    print(f"MinimalTube {app_version() or '(no version)'} server running at http://{args.host}:{args.port}")
     source = "MinimalTube's own copy" if running_own_copy() else "system-wide"
     print(f"yt-dlp {ytdlp_version} ({source})")
     print(

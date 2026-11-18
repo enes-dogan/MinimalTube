@@ -135,3 +135,19 @@ button.secondary svg {
   border-radius: var(--radius-md);
   padding: 8px 10px;
 }
+/* a newer MinimalTube is out (popup.js): opens the player's update card */
+#updateLine {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--accent-edge);
+  background: var(--accent-fill);
+  color: var(--link);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+#updateLine:hover {
+  background: var(--accent-fill-hover);
+}
+#updateLine[hidden] {
+  display: none;
+}

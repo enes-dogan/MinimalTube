@@ -1,6 +1,6 @@
 /* MinimalTube player - The Settings card: its switches (the SETTINGS table, saved as they're flipped), the
  * window / tab switch, the downloads' size cap, and the server's buttons (videos folder, restart,
- * update yt-dlp).
+ * update yt-dlp). Its Updates group is js/updates.js.
  * Loaded in order by player.html (classic scripts sharing one scope). */
 
 const streamOnlyMode = () => streamWhileDownloading && streamOnly;
@@ -59,6 +59,7 @@ function openSettings() {
   showServerState();
   loadCacheLimit();
   paintViewSwitch();
+  loadUpdateStatus();
 }
 // Its own window <-> a browser tab: the page itself moves (background.js, movePlayer), so a video
 // keeps playing and the queue, the page and everything else stay as they are.
@@ -232,7 +233,9 @@ settingsPanel.addEventListener("keydown", (event) => {
     event.target.click();
   }
   if (event.key !== "Tab") return;
-  const stops = [...settingsPanel.querySelectorAll("button, input")].filter((el) => !el.disabled);
+  const stops = [...settingsPanel.querySelectorAll("button, input")].filter(
+    (el) => !el.disabled && el.getClientRects().length, // not the hidden ones
+  );
   const at = stops.indexOf(event.target),
     next = at < 0 ? (event.shiftKey ? stops.length - 1 : 0) : (at + (event.shiftKey ? -1 : 1) + stops.length) % stops.length;
   event.preventDefault();

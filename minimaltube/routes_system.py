@@ -1,5 +1,7 @@
 """MinimalTube server - routes about the server itself: is it there, is the internet there, the
-downloads' size cap, the videos folder, restarting and updating yt-dlp."""
+downloads' size cap, the videos folder, restarting, updating yt-dlp and updating MinimalTube."""
+import os
+import sys
 import threading
 
 import yt_dlp
@@ -15,7 +17,8 @@ from .cache import (
 from .config import CACHE_DIR
 from .downloads import remember_running_downloads
 from .net import internet_up
-from .system import open_folder, run_again
+from . import updater
+from .system import app_version, open_folder, own_command, run_again
 from .web import STARTED, ApiError, json_body
 from .ytdlp_copy import install_latest, running_own_copy, up_to_date
 
@@ -24,8 +27,9 @@ bp = Blueprint("system", __name__)
 
 @bp.route("/health")
 def health():
-    # "app" is how the extension tells this server from another program on the same port
-    return jsonify({"status": "ok", "app": "minimaltube", "started": STARTED})
+    # "app" is how the extension tells this server from another program on the same port;
+    # "version" is the one installed in the folder now (after an update, ahead of a running player)
+    return jsonify({"status": "ok", "app": "minimaltube", "started": STARTED, "version": app_version()})
 
 
 @bp.route("/net")
@@ -90,3 +94,76 @@ def ytdlp_update():
         raise ApiError(str(e), 500) from e
     schedule_restart()
     return jsonify({"status": "restarting", "started": STARTED, "version": version})
+
+
+# ---- Updating MinimalTube itself from GitHub's releases (updater.py) ----
+@bp.route("/update/status")
+def update_status():
+    """What Settings shows about updates: see updater.status()."""
+    return jsonify(updater.status())
+
+
+@bp.route("/update/check", methods=["POST"])
+def update_check():
+    """Ask GitHub for its latest release now (at most once a minute); answers the status, which
+    carries what went wrong."""
+    updater.check(manual=True)
+    return jsonify(updater.status())
+
+
+@bp.route("/update/download", methods=["POST"])
+def update_download():
+    """Download and check the latest release in the background; the status follows it."""
+    try:
+        updater.start_download()
+    except updater.UpdateError as e:
+        raise ApiError(str(e), 409) from e
+    return jsonify(updater.status())
+
+
+def _stop_server():
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
+
+
+def _start_apply(start):
+    # the updater runs as a process of its own; when server files change, it waits for this one
+    # to end, which happens once this answer is out
+    try:
+        res = start(own_command(), int(request.environ.get("SERVER_PORT") or 0))
+    except updater.UpdateError as e:
+        raise ApiError(str(e), 409) from e
+    except OSError as e:
+        raise ApiError(f"couldn't start the update: {e}", 500) from e
+    if res["restart"]:
+        remember_running_downloads()
+        threading.Timer(0.5, _stop_server).start()
+    return jsonify({"status": "installing", "started": STARTED, **res})
+
+
+@bp.route("/update/install", methods=["POST"])
+def update_install():
+    """Install the downloaded release: {"id", "version", "restart", "started"}. With "restart"
+    the server stops now and the updater starts the new one; follow it with the status's
+    "install" (same id)."""
+    return _start_apply(updater.start_install)
+
+
+@bp.route("/update/rollback", methods=["POST"])
+def update_rollback():
+    """Go back to the version the last update replaced; answered like /update/install."""
+    return _start_apply(updater.start_rollback)
+
+
+@bp.route("/update/settings", methods=["PUT"])
+def update_settings():
+    """{"auto": true|false}: Settings' "Install updates automatically"."""
+    auto = json_body().get("auto")
+    if not isinstance(auto, bool):
+        raise ApiError('expected {"auto": true} or {"auto": false}')
+    try:
+        updater.set_auto(auto)
+    except OSError as e:
+        raise ApiError(str(e), 500) from e
+    return jsonify(updater.status())

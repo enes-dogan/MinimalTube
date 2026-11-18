@@ -3,7 +3,7 @@
 `server.py` next to this folder is only an entry point: it puts MinimalTube's own
 yt-dlp first on the import path (`ytdlp_copy`; the system-wide one is the fallback),
 checks that flask, flask-cors, yt-dlp and ffmpeg are present (and stops with an install
-hint if one is missing), starts the cache-maintenance and download worker threads, and serves
+hint if one is missing), starts the cache-maintenance, update-check and download worker threads, and serves
 the app with waitress (16 threads, so streams and polls don't wait for each other).
 Without waitress it falls back to Flask's built-in server. Deno isn't checked:
 yt-dlp finds it on the `PATH` by itself. `POST /restart` (Settings → Restart server)
@@ -11,7 +11,8 @@ runs it again in the same process, and the downloads that were running continue.
 `server.py --update-yt-dlp` (run by the installer) and `POST /ytdlp/update` (Settings →
 Update yt-dlp, which then restarts) install the newest yt-dlp as that own copy.
 `/health` answers `"app": "minimaltube"`: that's how the extension and the native host tell this
-server from another program's. The host starts it on port 7860, or on the next free one up to
+server from another program's. Its `"version"` is the one installed in the folder now (manifest.json),
+which after an update can be ahead of the extension the browser is running. The host starts it on port 7860, or on the next free one up to
 7869; the extension finds it on any of those and remembers it as `serverBase`.
 Everything else lives here.
 
@@ -25,6 +26,7 @@ Imports only go down this list, so there are no cycles:
 | `links` | config |
 | `ytinfo` | links |
 | `ytdlp_copy` | config, jsonfile, system |
+| `updater` | jsonfile, system |
 | `media` | config, jsonfile, system |
 | `cache` | config, jsonfile, media |
 | `store` | config, jsonfile, links, media |
@@ -38,12 +40,13 @@ Imports only go down this list, so there are no cycles:
 
 | Module | What it owns |
 |---|---|
-| `system.py` | What differs per OS, with no side effects (the native host and `install.py` use it too): the cache / data / app folders on Linux, macOS and Windows, the server's ports, `extension_id()` (from `manifest.json`'s key), `use_own_tools()` (MinimalTube's own ffmpeg, ffprobe and deno first on PATH), `spawn_detached()`, `run_again()` (restart in place), `replace_file()` (`os.replace` that rides out Windows' file locks), `port_is_free()`, `open_folder()`, `installer_hint()`. |
+| `system.py` | What differs per OS, with no side effects (the native host and `install.py` use it too): the cache / data / app folders on Linux, macOS and Windows, the server's ports, `extension_id()` (from `manifest.json`'s key), `app_version()` (`manifest.json`'s version: the only one), `uses_own_python()`, `use_own_tools()` (MinimalTube's own ffmpeg, ffprobe and deno first on PATH), `spawn_detached()`, `own_command()` and `run_again()` (restart in place), `pid_alive()`, `replace_file()` (`os.replace` that rides out Windows' file locks), `port_is_free()`, `open_folder()`, `installer_hint()`. |
 | `config.py` | `CACHE_DIR`, `DATA_DIR` (what the user made, kept apart from the cache), `APP_DIR` (MinimalTube's own Python, yt-dlp and tools), the cache limits, the yt-dlp format selector, the extension's origin, and the id regexes everything shares. |
 | `jsonfile.py` | `read_json` (tolerant) and `write_json_atomic` (temp file, then rename): the one reader and writer of every JSON file. |
 | `links.py` | `youtube_ids()`: the one reader of YouTube links (nothing else may reach yt-dlp), and the writers `watch_url`, `channel_url`, `thumbnail_url`. |
 | `ytinfo.py` | The one place that runs yt-dlp lookups: `ydl(**opts)` (quiet defaults), `video_info()` (a full lookup of one video, kept for a few minutes; simultaneous requests for the same video share one lookup), `video_meta()` (the light one: YouTube's player API, about 0.2 s) and `upload_timestamp()`. |
 | `ytdlp_copy.py` | MinimalTube's own yt-dlp: pip installs every version into a folder of its own in the app folder (`--target`, no sudo) and `yt-dlp.json` names the one to use, so an update never touches the running copy. |
+| `updater.py` | Updates from GitHub's releases (Settings → Updates), standard library only. The server checks the latest release (`check()`, once a day from `check_loop()`), downloads its source zip and checks every file against the tag's git tree (`stage_release()`: `unpack_release()`, `check_release()`), and works out which files differ here (`plan_changes()`). Installing (`start_install()`, `start_rollback()`) runs the new release's own copy of this file as a process of its own (`updater.py apply`): it backs up what it replaces, swaps only the changed files, restarts the server when server files changed and undoes everything when a step fails. The native host runs `updater.py recover` before it starts a server, for an install that was cut off. Its files are in the app folder's `updates/` (the module docstring lists them); a git checkout is never updated. |
 | `net.py` | The app-wide connection state: `internet_up()` (a cached probe of YouTube), `is_online()`, `on_online()` callbacks; a watcher re-checks while offline. Every response carries it as `X-MinimalTube-Net`. |
 | `media.py` | One video's files in the cache folder: the mp4, thumbnails (320 x 180 and 1280 x 720), description, release date, chapters, `<id>.meta.json`, SponsorBlock segments; `video_duration()`, `card_info()`. |
 | `cache.py` | Keeping the cache folder in bounds: the age sweep, the size cap (set in Settings, `settings.json`), unused thumbnails, the maintenance loop. |
@@ -60,7 +63,7 @@ Imports only go down this list, so there are no cycles:
 | `routes_library.py` | `/state`, `/queue`, `/library`, `/library/order`, `/durations`, `/info`, `DELETE /video`. |
 | `routes_playlists.py` | `/playlists` and everything under it. |
 | `routes_feed.py` | `/subscriptions…` (with `/subscriptions/youtube-sync`: what the last sync with a YouTube account left on both sides), `/feed`, `/feed/collabs`, `/channel` (the channel an @handle names), `/playlist` (reading a YouTube playlist). |
-| `routes_system.py` | `/health`, `/net`, `/cache-limit`, `/open-folder`, `/restart`, `/ytdlp/update`. |
+| `routes_system.py` | `/health`, `/net`, `/cache-limit`, `/open-folder`, `/restart`, `/ytdlp/update`, and the updates: `/update/status`, `/update/check`, `/update/download`, `/update/install`, `/update/rollback` (the last two answer at once; with server files changing the server then stops and the updater starts the new one), `/update/settings` (automatic updates). |
 
 ## Conventions
 

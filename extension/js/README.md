@@ -30,7 +30,8 @@ one big file would: no imports, no build step. A name can be declared only once 
 | `keyboard.js` | Keyboard navigation in lists (`makeRovingList`), inside the ⋮ menus, the skip link, and the keys of the player and the app. |
 | `seekbar.js` | Chapters and SponsorBlock marks on the seekbar. |
 | `overlays.js` | The keyboard shortcuts overlay and the welcome screen. |
-| `startup.js` | Runs last: the window's size and place, what the background asks of a running player (messages), and opening whatever the player was started for. |
+| `updates.js` | Updates from GitHub (the server does the work: `minimaltube/updater.py`): the Updates group in Settings (`loadUpdateStatus`, `paintUpdates`), the dot on the Settings buttons, one notice per new version, the update card (release notes, what changes, Install / Roll back: `openUpdateCard`, `installUpdate`), automatic installs when the player opens, and the snapshot that brings the player back where it was after the reload (`saveUpdateSnapshot`, `takeUpdateSnapshot`). |
+| `startup.js` | Runs last: the window's size and place, what the background asks of a running player (messages), and opening whatever the player was started for (after an update's reload: the snapshot). |
 
 The background service worker is `background.js` plus the files in `background/` (its header
 lists them); it loads `common.js` too.

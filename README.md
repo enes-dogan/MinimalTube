@@ -53,6 +53,10 @@ run the installer. The installer needs no admin rights and installs nothing syst
 You need a Chromium-based browser: Google Chrome, Chromium (ungoogled-chromium too), Brave,
 Microsoft Edge, Vivaldi or Opera. Everything else the installer brings along.
 
+Get MinimalTube from its [Releases page](https://github.com/enes-dogan/MinimalTube/releases):
+the latest release's *Source code (zip)*, unzipped into a folder of your own (your user folder,
+say; not *Program Files* or *Downloads*). Developers can `git clone` the repository instead.
+
 1. **Load the extension:** open `chrome://extensions` (`edge://extensions` in Edge), switch on
    *Developer mode*, click *Load unpacked* and pick the `extension` folder inside this one. Its ID is always
    `bnenkakahnieeabjicmgndndommgehje`, on every machine.
@@ -115,6 +119,7 @@ Nothing it does needs sudo or an admin password, and nothing goes outside your u
   *Stream only*, *Open YouTube videos in MinimalTube*, YouTube history sync and *Remember
   queue* (the app then also comes back with the last video, paused where you left it).
   Switches apply right away. *Max … GB* sets how much space downloads may take.
+  *Updates* shows your version and installs new ones (see Updating).
   ★ shows the tour again; **i** shows the keyboard shortcuts.
 - **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
   another program already uses it.
@@ -125,7 +130,7 @@ Nothing it does needs sudo or an admin password, and nothing goes outside your u
 |---|---|---|---|
 | Downloads, thumbnails, captions, the server log (`server.log`) | `~/.cache/minimaltube/` | `~/Library/Caches/MinimalTube/` | `%LOCALAPPDATA%\MinimalTube\Cache\` |
 | Playlists, subscriptions, collabs found in your YouTube feed, the order of your downloads, the size cap | `~/.local/share/minimaltube/` | `~/Library/Application Support/MinimalTube/` | `%APPDATA%\MinimalTube\` |
-| MinimalTube's own Python, yt-dlp, ffmpeg and Deno | `~/.local/share/minimaltube/` | `~/Library/Application Support/MinimalTube/` | `%LOCALAPPDATA%\MinimalTube\` |
+| MinimalTube's own Python, yt-dlp, ffmpeg and Deno, and its updates (`updates/`) | `~/.local/share/minimaltube/` | `~/Library/Application Support/MinimalTube/` | `%LOCALAPPDATA%\MinimalTube\` |
 | The app's entry | `~/.local/share/applications/minimaltube.desktop` | `~/Applications/MinimalTube.app` | Start menu → MinimalTube |
 | What lets the extension start the server | `~/.config/<browser>/NativeMessagingHosts/` | `~/Library/Application Support/<browser>/NativeMessagingHosts/` | registry: `HKCU\Software\<browser>\NativeMessagingHosts\com.minimaltube.host` |
 
@@ -137,12 +142,26 @@ under 64 GB, the oldest going first. Change that size in Settings (*Max … GB*,
 
 ## Updating
 
+MinimalTube updates itself from its GitHub releases. It looks for a new version once a day;
+when there is one, a dot appears on the Settings button. Settings → *Updates* → **Update to …**
+shows the release notes and which files change, then **Install** downloads the release, checks
+every file against GitHub's copy and replaces only the files that changed. The server restarts
+when its own files changed, and MinimalTube reloads and comes back where it was, the video
+paused. Your playlists, subscriptions, downloads and settings stay as they are, and so do files
+of your own in the folder. If something goes wrong, the update is undone; **Back to …** undoes
+the last update by hand. With *Install updates automatically* on, a new version is downloaded
+in the background and installed the next time MinimalTube opens.
+
+Two kinds of folder can't update themselves. A folder you can't write to (one in *Program
+Files*): move it somewhere of your own, *Load unpacked* its `extension` folder again and run
+the installer once. A copy made with `git clone`: update it with `git pull`, then reload the
+extension on `chrome://extensions` and Settings → **Restart server**, so both halves run the new
+code; run the installer again when the update says so.
+
 YouTube changes often, so keep yt-dlp current: Settings → **Update yt-dlp** installs the
 newest one and restarts the server.
 
-After getting new code for this folder: reload the extension on `chrome://extensions`, then
-Settings → **Restart server**, so both halves run the new code. Run the installer again when
-the update says so; that also updates the server's Python packages.
+A version without *Updates* in Settings can't update itself: get the new one by hand once, as above.
 
 Coming from a version where the browser loaded this whole folder: remove MinimalTube on
 `chrome://extensions`, *Load unpacked* the `extension` folder and run the installer once more.
@@ -191,3 +210,9 @@ server you started in a terminal stops with Ctrl+C there.
 - Chromium refuses to load an extension folder that holds a top-level name starting with `_`,
   so nothing else is kept in `extension/`. Python writes no bytecode (`-B`), which keeps the
   whole folder to the files it came with.
+- **Releasing** (installed copies update from GitHub's releases: `minimaltube/updater.py`):
+  raise `"version"` in `extension/manifest.json` (the only version number), commit, run
+  `python3 .github/release-check.py v1.3.0`, then tag and push the tag (`git tag v1.3.0`,
+  `git push origin v1.3.0`). The workflow in `.github/workflows/` checks it again and drafts the
+  release with generated notes; edit the notes and publish it on GitHub. `.github/` stays out of
+  the release's zip (`.gitattributes`).

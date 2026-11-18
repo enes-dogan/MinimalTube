@@ -109,7 +109,8 @@ chrome.runtime.onMessage.addListener((message, _sender, respond) => {
 
 /* =====================================================================
  * Start: the settings first, then whatever the player was opened for
- *   player.html                 the browse page (and, with "Remember queue", the queue as it was)
+ *   player.html                 the browse page (and, with "Remember queue" or after an update,
+ *                               the queue as it was)
  *   player.html?url=<link>      that video or playlist
  *   player.html?url=..&pid=..   the same, with a playlist read from a YouTube page: the
  *                               background left it in storage under `pid` (too big for an address)
@@ -155,12 +156,15 @@ async function openAtStart(openUrl, playlist) {
     if (queueLockedReason() && !playlistIdFromUrl(openUrl)) playVideoNow({ url: openUrl, title: openUrl });
     else addUrlToQueue(openUrl);
   } else {
-    if (hasSaved) {
+    // just reloaded after an update (js/updates.js): back where it was, "Remember queue" or not
+    const snapshot = await takeUpdateSnapshot();
+    if (snapshot) resumeFromSnapshot(snapshot);
+    else if (hasSaved) {
       restoreSavedQueue(saved);
       resumeSavedVideo();
     }
     setTimeout(() => document.body.classList.contains("browsing") && setBrowseTab(browseTab), 0);
-    maybeWelcome();
+    if (!snapshot) maybeWelcome();
   }
 }
 

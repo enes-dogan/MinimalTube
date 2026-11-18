@@ -1,0 +1,5 @@
+# Not part of MinimalTube itself: kept out of the source zips that installed copies update from.
+# Nothing here may change a file on its way into a zip (no text / eol attributes): the updater
+# checks every file of the zip against git's own copy.
+/.github export-ignore
+/.gitattributes export-ignore

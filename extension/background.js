@@ -9,6 +9,7 @@
  *   history.js         finished videos to the YouTube watch history, progress back from it
  *   playlist-sync.js   saved playlists kept in sync with the YouTube account's
  *   subscriptions.js   subscriptions kept in sync with the account's; collabs from its feed
+ *   updates.js         after MinimalTube updated itself: reloading, opening the player again
  *
  * js/common.js is shared with the player, the popup and the content script. All of these share
  * this worker's one scope (importScripts), so a name can be declared only once among them.
@@ -23,6 +24,7 @@ importScripts(
   "background/history.js",
   "background/playlist-sync.js",
   "background/subscriptions.js",
+  "background/updates.js",
 );
 
 // What earlier versions left in storage and nothing reads any more: removed once, when the
@@ -71,12 +73,18 @@ const MESSAGES = {
   "minimaltube-sync-subscriptions": (msg) =>
     syncSubscriptions(["subscribe", "remove", "confirm"].includes(msg.choice) ? msg.choice : null),
   "minimaltube-read-collabs": (msg) => readCollabsOnce(!!msg.force),
+  // an update was installed: run it (the player has kept what it shows by then)
+  "minimaltube-reload-for-update": () =>
+    installedVersion()
+      .catch(() => null)
+      .then((version) => reloadForUpdate(version || chrome.runtime.getManifest().version, true)),
 
   // ---- from the popup
+  // `style` "window" or "tab"; without one, a running player stays where it is
   "minimaltube-open-window": (msg) =>
     msg.playerUrl
       ? ensureServerOrNotify() // the window opens either way
-          .then(() => openPlayerWindow(msg.playerUrl, msg.style === "tab" ? "tab" : "window"))
+          .then(() => openPlayerWindow(msg.playerUrl, ["window", "tab"].includes(msg.style) ? msg.style : undefined))
           .then(() => ({ ok: true }))
       : IGNORED,
   "minimaltube-queue-add": (msg) => (msg.url ? addToQueue(msg.url) : IGNORED),

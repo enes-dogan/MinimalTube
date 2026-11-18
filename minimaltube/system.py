@@ -92,9 +92,79 @@ def extension_id(manifest) -> str | None:
     return digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop"))
 
 
+def app_version(project=PROJECT_DIR) -> str | None:
+    """MinimalTube's version: the "version" of extension/manifest.json, the only place it's written
+    (a release's tag is "v" plus it).
+
+    Args:
+        project (str | Path): The project folder to look in (this one unless said otherwise).
+
+    Returns:
+        str | None: Such as "1.3.0", or None when the manifest can't be read.
+    """
+    try:
+        version = json.loads((Path(project) / "extension" / "manifest.json").read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return version if isinstance(version, str) else None
+
+
+def uses_own_python() -> bool:
+    """Whether this process runs on MinimalTube's own Python (app folder's python/), whose
+    packages MinimalTube installs itself; else on a system Python (Linux), whose packages come from
+    the package manager."""
+    try:
+        return Path(sys.prefix).resolve().is_relative_to((app_dir() / "python").resolve())
+    except OSError:
+        return False
+
+
+def pid_alive(pid: int) -> bool:
+    """Whether the process with this id is still running (a zombie on Linux counts as gone).
+
+    Windows has no harmless os.kill (any signal there ends the process), so it asks the process's
+    exit code instead.
+    """
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    if WINDOWS:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.get_last_error() == 5  # access denied: it runs, as another user
+        try:
+            code = wintypes.DWORD()
+            return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    try:  # a process that ended but wasn't reaped yet by its parent
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        return True
+
+
 def port_is_free(host: str, port: int) -> bool:
-    """Whether nothing listens on host:port right now (it can be bound)."""
+    """Whether nothing listens on host:port right now (it can be bound). On Linux and macOS the
+    connections a server that just ended leaves behind (TIME_WAIT, a minute) don't count: the
+    server binds over them too (SO_REUSEADDR)."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if not WINDOWS:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind((host, port))
             return True
@@ -172,6 +242,13 @@ def spawn_detached(cmd: list, cwd=None, stdout=None, stderr=None) -> subprocess.
         return subprocess.Popen(cmd, creationflags=flags, **kwargs)
 
 
+def own_command() -> list:
+    """The command line that runs this program again as it was started: this Python, its options
+    (-X utf8, -u, -B) and the script with its arguments."""
+    orig = getattr(sys, "orig_argv", None)  # Python 3.10+
+    return [sys.executable, *orig[1:]] if orig else [sys.executable, "-u", *sys.argv]
+
+
 def run_again(windows_arg: str | None = None) -> None:
     """Run this program again in place of the running one (the server, after an update). Never
     returns.
@@ -185,7 +262,7 @@ def run_again(windows_arg: str | None = None) -> None:
     """
     sys.stdout.flush()
     sys.stderr.flush()
-    argv = list(getattr(sys, "orig_argv", None) or [sys.executable, "-u", *sys.argv])
+    argv = own_command()
     if not WINDOWS:
         os.execv(sys.executable, argv)
     if windows_arg and windows_arg not in argv:

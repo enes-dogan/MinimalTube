@@ -120,6 +120,71 @@
   font-weight: 600;
   letter-spacing: 0.3px;
 }
+/* ---- Updates (js/updates.js): a group across the card, under the switches ---- */
+#updateGroup {
+  margin-top: 12px;
+}
+.updRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.updText {
+  flex: 1;
+  min-width: 0;
+}
+#updTitle {
+  font-weight: 600;
+}
+#updSub {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+#updSub:empty {
+  display: none;
+}
+#updSub.problem {
+  color: var(--warn);
+}
+.updRow .btn {
+  flex-shrink: 0;
+}
+.updRow .btn[hidden] {
+  display: none;
+}
+@media (max-width: 520px) {
+  .updRow {
+    flex-wrap: wrap;
+  }
+  .updText {
+    flex-basis: 100%;
+  }
+}
+#settingsPanel .checkrow.off {
+  opacity: 0.45;
+}
+/* a newer version waits: a dot on both Settings buttons */
+#gear.hasUpdate,
+#bpSettingsBtn.hasUpdate {
+  position: relative;
+}
+#gear.hasUpdate::after,
+#bpSettingsBtn.hasUpdate::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-round);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+}
 .settingsTools {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
