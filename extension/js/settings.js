@@ -45,6 +45,48 @@ SETTINGS.forEach(({ key, input, set }) =>
     }
   }),
 );
+// Appearance: one swatch per colour theme. A pick applies at once (every open page follows through
+// chrome.storage, js/theme.js), and the server gives the installed app the theme's icon.
+const themeRow = document.getElementById("themeRow");
+themeRow.innerHTML = THEMES.map(
+  (t) => `<button type="button" class="themeSwatch" role="radio" data-theme="${t.id}" title="${t.name}"
+    style="--sw-bg:${t.bg};--sw-panel:${t.panel};--sw-accent:${t.accent}"><span class="face"></span>${t.name}</button>`,
+).join("");
+const themeSwatches = [...themeRow.querySelectorAll(".themeSwatch")];
+function paintThemeSwatches() {
+  const now = currentTheme();
+  themeSwatches.forEach((b) => {
+    b.setAttribute("aria-checked", b.dataset.theme === now);
+    b.tabIndex = b.dataset.theme === now ? 0 : -1;
+  });
+}
+paintThemeSwatches();
+document.addEventListener("minimaltube-theme", paintThemeSwatches);
+async function pickTheme(theme) {
+  if (theme === currentTheme()) return;
+  paintTheme(theme);
+  chrome.storage.local.set({ theme });
+  try {
+    const res = await api("/launcher-icon", { method: "PUT", body: { theme } });
+    if (res.note) notify(res.note, false, 6000);
+  } catch (err) {
+    notify(`The app's icon in your system stays as it was: ${firstLine(err.message)}`, true, 5000);
+  }
+}
+themeRow.addEventListener("click", (event) => {
+  const swatch = event.target.closest(".themeSwatch");
+  if (swatch) pickTheme(swatch.dataset.theme);
+});
+themeRow.addEventListener("keydown", (event) => {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+  const at = themeSwatches.indexOf(document.activeElement);
+  if (!step || at < 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const next = themeSwatches[(at + step + themeSwatches.length) % themeSwatches.length];
+  pickTheme(next.dataset.theme);
+  next.focus();
+});
 // Settings is a card over the whole app: it comes in from above and leaves downwards.
 let settingsLeaveTimer = 0,
   settingsReturnFocus = null;

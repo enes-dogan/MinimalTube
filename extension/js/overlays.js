@@ -223,7 +223,7 @@ function showWelcome({ then } = {}) {
   welcomeEl.innerHTML = `
     <div class="welcomeCard" role="dialog" aria-labelledby="welcomeTitle">
       <div class="welcomeHead">
-        <img src="icons/icon256.png" alt="" />
+        <img src="${themeIcon(currentTheme(), 256)}" data-logo="256" alt="" />
         <div>
           <h1 id="welcomeTitle">Welcome to MinimalTube</h1>
           <p>YouTube without the noise: your subscriptions, playlists and downloads in one calm player.</p>

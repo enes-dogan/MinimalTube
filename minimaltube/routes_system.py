@@ -1,5 +1,6 @@
 """MinimalTube server - routes about the server itself: is it there, is the internet there, the
-downloads' size cap, the videos folder, restarting, updating yt-dlp and updating MinimalTube."""
+downloads' size cap, the videos folder, restarting, updating yt-dlp and updating MinimalTube, and the
+installed app's icon."""
 import os
 import sys
 import threading
@@ -17,7 +18,7 @@ from .cache import (
 from .config import CACHE_DIR
 from .downloads import remember_running_downloads
 from .net import internet_up
-from . import updater
+from . import launchers, updater
 from .system import app_version, open_folder, own_command, run_again
 from .web import STARTED, ApiError, json_body
 from .ytdlp_copy import install_latest, running_own_copy, up_to_date
@@ -167,3 +168,16 @@ def update_settings():
     except OSError as e:
         raise ApiError(str(e), 500) from e
     return jsonify(updater.status())
+
+
+@bp.route("/launcher-icon", methods=["PUT"])
+def launcher_icon():
+    """{"theme": "<id>"}: give the installed app (menu entry, Start menu, ~/Applications) that colour
+    theme's icon, and keep the theme for the installer. Answers {"theme", "updated", "note"}."""
+    theme = json_body().get("theme")
+    if theme not in launchers.THEMES:
+        raise ApiError(f"Unknown theme. Choose one of: {', '.join(launchers.THEMES)}.")
+    try:
+        return jsonify(launchers.set_launcher_theme(theme))
+    except (OSError, RuntimeError) as e:
+        raise ApiError(str(e), 500) from e

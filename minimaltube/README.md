@@ -27,6 +27,7 @@ Imports only go down this list, so there are no cycles:
 | `ytinfo` | links |
 | `ytdlp_copy` | config, jsonfile, system |
 | `updater` | jsonfile, system |
+| `launchers` | jsonfile, system |
 | `media` | config, jsonfile, system |
 | `cache` | config, jsonfile, media |
 | `store` | config, jsonfile, links, media |
@@ -47,6 +48,7 @@ Imports only go down this list, so there are no cycles:
 | `ytinfo.py` | The one place that runs yt-dlp lookups: `ydl(**opts)` (quiet defaults), `video_info()` (a full lookup of one video, kept for a few minutes; simultaneous requests for the same video share one lookup), `video_meta()` (the light one: YouTube's player API, about 0.2 s) and `upload_timestamp()`. |
 | `ytdlp_copy.py` | MinimalTube's own yt-dlp: pip installs every version into a folder of its own in the app folder (`--target`, no sudo) and `yt-dlp.json` names the one to use, so an update never touches the running copy. |
 | `updater.py` | Updates from GitHub's releases (Settings → Updates), standard library only. The server checks the latest release (`check()`, once a day from `check_loop()`), downloads its source zip and checks every file against the tag's git tree (`stage_release()`: `unpack_release()`, `check_release()`), and works out which files differ here (`plan_changes()`). Installing (`start_install()`, `start_rollback()`) runs the new release's own copy of this file as a process of its own (`updater.py apply`): it backs up what it replaces, swaps only the changed files, restarts the server when server files changed and undoes everything when a step fails. The native host runs `updater.py recover` before it starts a server, for an install that was cut off. Its files are in the app folder's `updates/` (the module docstring lists them); a git checkout is never updated. |
+| `launchers.py` | The installed app's icon in the colour theme picked in Settings (`PUT /launcher-icon`; the installer uses it too): `set_launcher_theme()` rewrites the Linux `.desktop` entry's `Icon=`, points the Windows Start-menu shortcut and a taskbar pin at the theme's `.ico` (`SHChangeNotify`), or rebuilds the macOS app's `.icns`; `saved_theme()` (`launcher_theme` in `settings.json`), `icon_file()`, `write_ico()`, `write_icns()`. |
 | `net.py` | The app-wide connection state: `internet_up()` (a cached probe of YouTube), `is_online()`, `on_online()` callbacks; a watcher re-checks while offline. Every response carries it as `X-MinimalTube-Net`. |
 | `media.py` | One video's files in the cache folder: the mp4, thumbnails (320 x 180 and 1280 x 720), description, release date, chapters, `<id>.meta.json`, SponsorBlock segments; `video_duration()`, `card_info()`. |
 | `cache.py` | Keeping the cache folder in bounds: the age sweep, the size cap (set in Settings, `settings.json`), unused thumbnails, the maintenance loop. |
@@ -63,7 +65,7 @@ Imports only go down this list, so there are no cycles:
 | `routes_library.py` | `/state`, `/queue`, `/library`, `/library/order`, `/durations`, `/info`, `DELETE /video`. |
 | `routes_playlists.py` | `/playlists` and everything under it. |
 | `routes_feed.py` | `/subscriptions…` (with `/subscriptions/youtube-sync`: what the last sync with a YouTube account left on both sides), `/feed`, `/feed/collabs`, `/channel` (the channel an @handle names), `/playlist` (reading a YouTube playlist). |
-| `routes_system.py` | `/health`, `/net`, `/cache-limit`, `/open-folder`, `/restart`, `/ytdlp/update`, and the updates: `/update/status`, `/update/check`, `/update/download`, `/update/install`, `/update/rollback` (the last two answer at once; with server files changing the server then stops and the updater starts the new one), `/update/settings` (automatic updates). |
+| `routes_system.py` | `/health`, `/net`, `/cache-limit`, `/open-folder`, `/restart`, `/ytdlp/update`, and the updates: `/update/status`, `/update/check`, `/update/download`, `/update/install`, `/update/rollback` (the last two answer at once; with server files changing the server then stops and the updater starts the new one), `/update/settings` (automatic updates), and `/launcher-icon` (the installed app's icon in a colour theme: `launchers.py`). |
 
 ## Conventions
 

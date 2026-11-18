@@ -10,6 +10,7 @@
  *   playlist-sync.js   saved playlists kept in sync with the YouTube account's
  *   subscriptions.js   subscriptions kept in sync with the account's; collabs from its feed
  *   updates.js         after MinimalTube updated itself: reloading, opening the player again
+ *   theme.js           the colour theme's logo on the toolbar button
  *
  * js/common.js is shared with the player, the popup and the content script. All of these share
  * this worker's one scope (importScripts), so a name can be declared only once among them.
@@ -25,6 +26,7 @@ importScripts(
   "background/playlist-sync.js",
   "background/subscriptions.js",
   "background/updates.js",
+  "background/theme.js",
 );
 
 // What earlier versions left in storage and nothing reads any more: removed once, when the

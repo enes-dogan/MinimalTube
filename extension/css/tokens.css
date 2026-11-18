@@ -1,4 +1,4 @@
-/* MinimalTube - design tokens
+/* MinimalTube - design tokens (the Violet theme; css/themes.css redefines the colours for the others)
    The whole UI is built from the values below: change one here and every
    panel, card, menu and button follows. Grouped by what they are for, not
    by where they happen to be used. */
@@ -23,6 +23,8 @@
   --surface-input: var(--wash-1); /* text fields, on any surface */
   --switch-off: #2c2a35;
   --video-bg: #000;
+  --popup-bg: #0e0d12; /* the toolbar popup's page and its panel */
+  --popup-panel: #17161d;
 
   /* Accent */
   --accent: #8a5cf5;

@@ -4,8 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Opening in MinimalTube</title>
-    <link rel="icon" href="icons/icon32.png" />
+    <link rel="icon" href="icons/themes/violet/icon32.png" sizes="32x32" />
+    <script src="js/theme-early.js"></script>
     <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/themes.css" />
     <style>
       body {
         margin: 0;
@@ -23,10 +25,12 @@
   </head>
   <body>
     <main>
-      <img src="icons/icon64.png" width="48" height="48" alt="" />
+      <img src="icons/themes/violet/icon64.png" data-logo="64" width="48" height="48" alt="" />
       <p id="status">Opening in MinimalTube…</p>
       <p id="detail"></p>
     </main>
+    <script src="js/common.js"></script>
+    <script src="js/theme.js"></script>
     <script src="open.js"></script>
   </body>
 </html>

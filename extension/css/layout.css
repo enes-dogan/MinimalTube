@@ -52,8 +52,8 @@
   margin: 0 auto 18px;
   width: 64px;
   height: 64px;
-  /* relative to this stylesheet, so up one level out of css/ */
-  background: url("../icons/icon128.png") center / contain no-repeat;
+  /* --logo-url is the theme's logo (js/theme.js); the fallback is relative to this stylesheet */
+  background: var(--logo-url, url("../icons/icon128.png")) center / contain no-repeat;
   filter: drop-shadow(0 0 18px var(--accent-glow));
 }
 

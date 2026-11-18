@@ -111,7 +111,7 @@ async function ensureServer() {
 function notifyServerProblem(res) {
   chrome.notifications.create({
     type: "basic",
-    iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+    iconUrl: chrome.runtime.getURL(themeIcon(toolbarTheme, 128)),
     title: "MinimalTube server isn't running",
     message: res.error || `Couldn't reach ${res.serverBase}.`,
   });

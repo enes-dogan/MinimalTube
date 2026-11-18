@@ -164,7 +164,7 @@ function openUpdateCard({ rollback = false } = {}) {
   overlay.innerHTML = `
     <div class="updCard" role="dialog" aria-modal="true" aria-labelledby="updCardTitle" tabindex="-1">
       <div class="updCardHead">
-        <img src="icons/icon64.png" alt="" />
+        <img src="${themeIcon(currentTheme(), 64)}" data-logo="64" alt="" />
         <div><h2 id="updCardTitle"></h2><div class="updCardSub"></div></div>
       </div>
       <div class="updNotes"></div>

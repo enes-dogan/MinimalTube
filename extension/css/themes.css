@@ -1,0 +1,161 @@
+/* MinimalTube - colour themes (Settings -> Appearance)
+   Violet, the default, is tokens.css as it is. Each theme below redefines the tokens that carry
+   its colour; status colours (ok, warn, danger, delete red, SponsorBlock green), the white washes
+   and the shadows stay the same in every theme. The theme is <html data-theme="...">, set before
+   the first paint by js/theme-early.js. The theme list and its logos: THEMES in js/common.js,
+   extension/icons/themes/<theme>/ (drawn by .github/make-icons.py). */
+
+/* Crimson: YouTube's red on YouTube's near-black and #282828 */
+:root[data-theme="crimson"] {
+  --bg: #0f0f0f;
+  --panel: rgba(40, 40, 40, 0.86);
+  --panel-solid: #282828;
+  --glass: rgba(28, 28, 28, 0.82);
+  --glass-dim: rgba(28, 28, 28, 0.55);
+  --glass-hover: rgba(63, 63, 63, 0.88);
+  --surface-float: rgba(33, 33, 33, 0.94);
+  --surface-dialog: rgba(40, 40, 40, 0.97);
+  --backdrop: rgba(15, 15, 15, 0.74);
+  --thumb-bg: #272727;
+  --surface-raised: #282828;
+  --surface-lifted: #3f3f3f;
+  --switch-off: #3f3f3f;
+  --popup-bg: #0f0f0f;
+  --popup-panel: #212121;
+  --accent: #ff0033;
+  --accent-dim: #d9002b;
+  --accent-glow: rgba(255, 0, 51, 0.45);
+  --accent-fill: rgba(255, 0, 51, 0.16);
+  --accent-fill-hover: rgba(255, 0, 51, 0.3);
+  --accent-tint: rgba(255, 0, 51, 0.14);
+  --accent-edge: rgba(255, 0, 51, 0.35);
+  --on-accent: #ffffff;
+  --text: #f1f1f1;
+  --muted: #aaaaaa;
+  --text-active: #ff8fa1;
+  --link: #3ea6ff;
+}
+
+/* Clay: Claude Code's orange on its warm greys */
+:root[data-theme="clay"] {
+  --bg: #262624;
+  --panel: rgba(48, 48, 46, 0.86);
+  --panel-solid: #30302e;
+  --glass: rgba(43, 43, 41, 0.82);
+  --glass-dim: rgba(43, 43, 41, 0.55);
+  --glass-hover: rgba(69, 64, 58, 0.88);
+  --surface-float: rgba(48, 48, 46, 0.94);
+  --surface-dialog: rgba(50, 50, 47, 0.97);
+  --backdrop: rgba(38, 38, 36, 0.74);
+  --thumb-bg: #1f1e1d;
+  --surface-raised: #3d3d3a;
+  --surface-lifted: #45403a;
+  --switch-off: #4a4945;
+  --popup-bg: #262624;
+  --popup-panel: #30302e;
+  --accent: #d97757;
+  --accent-dim: #c2613f;
+  --accent-glow: rgba(217, 119, 87, 0.45);
+  --accent-fill: rgba(217, 119, 87, 0.16);
+  --accent-fill-hover: rgba(217, 119, 87, 0.3);
+  --accent-tint: rgba(217, 119, 87, 0.14);
+  --accent-edge: rgba(217, 119, 87, 0.35);
+  --on-accent: #ffffff;
+  --text: #faf9f5;
+  --muted: #a6a39a;
+  --text-active: #f3cbb8;
+  --link: #eba98d;
+}
+
+/* Mint (pastel) on green-tinted greys */
+:root[data-theme="mint"] {
+  --bg: #131917;
+  --panel: rgba(27, 35, 32, 0.86);
+  --panel-solid: #1b2320;
+  --glass: rgba(24, 32, 29, 0.82);
+  --glass-dim: rgba(24, 32, 29, 0.55);
+  --glass-hover: rgba(36, 53, 46, 0.88);
+  --surface-float: rgba(27, 35, 32, 0.94);
+  --surface-dialog: rgba(30, 39, 36, 0.97);
+  --backdrop: rgba(19, 25, 23, 0.74);
+  --thumb-bg: #1a2120;
+  --surface-raised: #24302b;
+  --surface-lifted: #24352e;
+  --switch-off: #2e3a35;
+  --popup-bg: #131917;
+  --popup-panel: #1b2320;
+  --accent: #86e0b8;
+  --accent-dim: #66c99e;
+  --accent-glow: rgba(134, 224, 184, 0.45);
+  --accent-fill: rgba(134, 224, 184, 0.16);
+  --accent-fill-hover: rgba(134, 224, 184, 0.3);
+  --accent-tint: rgba(134, 224, 184, 0.14);
+  --accent-edge: rgba(134, 224, 184, 0.35);
+  --on-accent: #0c2a1e;
+  --text: #edf6f1;
+  --muted: #8ea39a;
+  --text-active: #c8f4e0;
+  --link: #9fe8c8;
+}
+
+/* Sky (pastel) on slate greys */
+:root[data-theme="sky"] {
+  --bg: #13171d;
+  --panel: rgba(27, 33, 41, 0.86);
+  --panel-solid: #1b2129;
+  --glass: rgba(24, 29, 36, 0.82);
+  --glass-dim: rgba(24, 29, 36, 0.55);
+  --glass-hover: rgba(35, 50, 71, 0.88);
+  --surface-float: rgba(27, 33, 41, 0.94);
+  --surface-dialog: rgba(30, 37, 46, 0.97);
+  --backdrop: rgba(19, 23, 29, 0.74);
+  --thumb-bg: #19202a;
+  --surface-raised: #252d38;
+  --surface-lifted: #233247;
+  --switch-off: #2d3540;
+  --popup-bg: #13171d;
+  --popup-panel: #1b2129;
+  --accent: #93c5fd;
+  --accent-dim: #6eaaf5;
+  --accent-glow: rgba(147, 197, 253, 0.45);
+  --accent-fill: rgba(147, 197, 253, 0.16);
+  --accent-fill-hover: rgba(147, 197, 253, 0.3);
+  --accent-tint: rgba(147, 197, 253, 0.14);
+  --accent-edge: rgba(147, 197, 253, 0.35);
+  --on-accent: #0a2240;
+  --text: #eef3fa;
+  --muted: #8f9aaa;
+  --text-active: #d4e8ff;
+  --link: #a9d2ff;
+}
+
+/* Sakura (pastel) on plum-tinted greys */
+:root[data-theme="sakura"] {
+  --bg: #1a1519;
+  --panel: rgba(36, 29, 34, 0.86);
+  --panel-solid: #241d22;
+  --glass: rgba(33, 26, 31, 0.82);
+  --glass-dim: rgba(33, 26, 31, 0.55);
+  --glass-hover: rgba(59, 41, 54, 0.88);
+  --surface-float: rgba(36, 29, 34, 0.94);
+  --surface-dialog: rgba(42, 33, 39, 0.97);
+  --backdrop: rgba(26, 21, 25, 0.74);
+  --thumb-bg: #221b20;
+  --surface-raised: #32272f;
+  --surface-lifted: #3b2936;
+  --switch-off: #3c3139;
+  --popup-bg: #1a1519;
+  --popup-panel: #241d22;
+  --accent: #f5a9c9;
+  --accent-dim: #e98bb3;
+  --accent-glow: rgba(245, 169, 201, 0.45);
+  --accent-fill: rgba(245, 169, 201, 0.16);
+  --accent-fill-hover: rgba(245, 169, 201, 0.3);
+  --accent-tint: rgba(245, 169, 201, 0.14);
+  --accent-edge: rgba(245, 169, 201, 0.35);
+  --on-accent: #3e0d24;
+  --text: #fbf1f6;
+  --muted: #a9949f;
+  --text-active: #fde0ec;
+  --link: #f8bed6;
+}

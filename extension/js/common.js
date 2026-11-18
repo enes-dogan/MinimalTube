@@ -22,6 +22,26 @@ const YT_ORIGIN = "https://www.youtube.com",
   VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/,
   YT_HOST_RE = /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/;
 
+/** The colour themes (Settings -> Appearance), the default first. `bg`, `panel` and `accent` paint
+ * the theme's swatch; the theme's tokens are in css/themes.css, its logos in icons/themes/<id>/. */
+const THEMES = [
+  { id: "violet", name: "Violet", bg: "#0a0a0d", panel: "#16151c", accent: "#8a5cf5" },
+  { id: "crimson", name: "Crimson", bg: "#0f0f0f", panel: "#282828", accent: "#ff0033" },
+  { id: "clay", name: "Clay", bg: "#262624", panel: "#30302e", accent: "#d97757" },
+  { id: "mint", name: "Mint", bg: "#131917", panel: "#1b2320", accent: "#86e0b8" },
+  { id: "sky", name: "Sky", bg: "#13171d", panel: "#1b2129", accent: "#93c5fd" },
+  { id: "sakura", name: "Sakura", bg: "#1a1519", panel: "#241d22", accent: "#f5a9c9" },
+];
+const themeId = (id) => (THEMES.some((t) => t.id === id) ? id : "violet");
+
+/**
+ * The logo of a theme, as a path inside the extension.
+ * @param {string} theme A THEMES id; anything else gives Violet's.
+ * @param {number} size 16, 32, 48, 64, 128, 256 or 512 (pixels).
+ * @returns {string} e.g. "icons/themes/clay/icon64.png"
+ */
+const themeIcon = (theme, size) => `icons/themes/${themeId(theme)}/icon${size}.png`;
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** An error as text: its message when it has one. */

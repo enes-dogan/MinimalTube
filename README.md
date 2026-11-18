@@ -119,6 +119,9 @@ Nothing it does needs sudo or an admin password, and nothing goes outside your u
   *Stream only*, *Open YouTube videos in MinimalTube*, YouTube history sync and *Remember
   queue* (the app then also comes back with the last video, paused where you left it).
   Switches apply right away. *Max … GB* sets how much space downloads may take.
+  *Appearance* (experimental) has six colour themes: Violet, Crimson, Clay, Mint, Sky and Sakura.
+  The app, the toolbar button and the installed app's icon take the theme's colour (if Windows'
+  taskbar or the macOS Dock keeps the old icon, run the installer again or sign in again).
   *Updates* shows your version and installs new ones (see Updating).
   ★ shows the tour again; **i** shows the keyboard shortcuts.
 - **The server's address** finds itself: port 7860, or the next free one (up to 7869) when
@@ -216,3 +219,5 @@ server you started in a terminal stops with Ctrl+C there.
   `git push origin v1.3.0`). The workflow in `.github/workflows/` checks it again and drafts the
   release with generated notes; edit the notes and publish it on GitHub. `.github/` stays out of
   the release's zip (`.gitattributes`).
+- **The logo:** `python3 -B .github/make-icons.py` draws it in every colour theme (needs
+  `rsvg-convert`) into `extension/icons/themes/<theme>/`; the shipped PNGs are what the app uses.

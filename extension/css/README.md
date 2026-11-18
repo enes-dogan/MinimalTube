@@ -5,6 +5,7 @@ Load them in this order:
 | File | What it covers |
 |---|---|
 | `tokens.css` | Every colour, shadow, radius, type size, layer (z-index) and easing the UI uses. Start here. |
+| `themes.css` | The colour themes other than Violet: each redefines the colour tokens under `:root[data-theme="…"]`. Status colours, washes and shadows are the same in every theme. |
 | `base.css` | Reset, page background, hidden scrollbars, shared keyframes, reduced-motion. |
 | `buttons.css` | The shared pieces: text buttons (`.btn` + `.btn-primary` / `-ghost` / `-tint` / `-danger`, shapes `-rect` / `-sm` / `-block`), the ⋮ buttons, key hints (`.kbd`) and the one keyboard-focus ring. |
 | `layout.css` | The player frame: stage, video, placeholder, scrims, the mouse-idle fade. |
@@ -15,7 +16,7 @@ Load them in this order:
 | `menus.css` | The ⋮ menus (queue rows and browse cards) and the shared "Save to" popover. |
 | `browse.css` | Browse page: tabs, the OFFLINE badge, channel bar (Channels button, chips, "Showing only"), card grids, the video card and its watch-progress bar, the "new videos" pill, the skip link. |
 | `mini-player.css` | The small floating player shown while browsing. |
-| `popup.css` | The toolbar popup (`popup.html`). Loads `tokens.css`, then overrides two values. |
+| `popup.css` | The toolbar popup (`popup.html`). Loads `tokens.css` and `themes.css`; its page and panel use `--popup-bg` and `--popup-panel`. |
 
 ## Conventions
 

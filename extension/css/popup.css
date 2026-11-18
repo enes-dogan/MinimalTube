@@ -1,10 +1,6 @@
 /* MinimalTube - toolbar popup
-   Uses the shared tokens from tokens.css; the popup's panel sits on its own
-   slightly lighter background, so those two values are redefined here. */
-:root {
-  --bg: #0e0d12;
-  --panel: #17161d;
-}
+   Uses the shared tokens from tokens.css and themes.css; its page and panel have
+   their own two tokens (--popup-bg, --popup-panel). */
 
 * {
   box-sizing: border-box;
@@ -13,7 +9,7 @@ body {
   width: 290px;
   margin: 0;
   padding: 16px;
-  background: var(--bg);
+  background: var(--popup-bg);
   color: var(--text);
   font-family:
     "Segoe UI",
@@ -45,7 +41,7 @@ input {
   padding: 10px 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--popup-panel);
   color: var(--text);
   font-size: var(--fs-base);
   margin-bottom: 10px;

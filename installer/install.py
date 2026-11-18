@@ -29,7 +29,6 @@ import plistlib
 import re
 import shlex
 import shutil
-import struct
 import subprocess
 import sys
 import tempfile
@@ -41,6 +40,9 @@ from pathlib import Path
 # No bytecode: the project folder keeps only the files it came with.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from minimaltube.launchers import (  # noqa: E402
+    icon_file, linux_apps_dir, macos_app, refresh_linux_menus, saved_theme, windows_ico, windows_relink,
+    windows_shortcuts, write_icns)
 from minimaltube.system import (  # noqa: E402
     EXTENSION_DIR, MACOS, PROJECT_DIR, WINDOWS, app_dir, bin_dir, extension_id, installer_hint, use_own_tools,
     uses_own_python)
@@ -446,22 +448,10 @@ def pick_browser(found: list[dict], ext_id: str) -> dict | None:
     return next((b for b in with_exe if has_extension(b, ext_id)), with_exe[0] if with_exe else None)
 
 
-def write_ico(dest: Path) -> None:
-    """An .ico of the PNG icons (Windows reads PNG images inside an .ico)."""
-    images = [(s, (EXTENSION_DIR / "icons" / f"icon{s}.png").read_bytes())
-              for s in (16, 32, 48, 64, 128, 256) if (EXTENSION_DIR / "icons" / f"icon{s}.png").is_file()]
-    offset = 6 + 16 * len(images)
-    head, body = struct.pack("<HHH", 0, 1, len(images)), b""
-    for size, png in images:
-        head += struct.pack("<BBBBHHII", size % 256, size % 256, 0, 0, 1, 32, len(png), offset + len(body))
-        body += png
-    dest.write_bytes(head + body)
-
-
 def launcher_linux(browser: dict, ext_id: str) -> str:
-    apps = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "applications"
+    apps = linux_apps_dir()
     apps.mkdir(parents=True, exist_ok=True)
-    icon = EXTENSION_DIR / "icons" / "icon128.png"
+    icon = icon_file(saved_theme(), 256)  # the colour theme picked in Settings (minimaltube/launchers.py)
     app_url = f"chrome-extension://{ext_id}/player.html"
     command = f'"{browser["exe"]}" --app={app_url}'
     if browser.get("sandbox"):
@@ -491,14 +481,12 @@ def launcher_linux(browser: dict, ext_id: str) -> str:
         # how the desktop matches the player's window to this entry (its icon in the task bar)
         entry += f"StartupWMClass={browser['wm']}-{ext_id}__player.html-Default\n"
     write_if_changed(apps / "minimaltube.desktop", entry)
-    for refresh in (["update-desktop-database", str(apps)], ["kbuildsycoca6"], ["kbuildsycoca5"]):
-        if shutil.which(refresh[0]):
-            subprocess.run(refresh, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    refresh_linux_menus(apps)
     return "your application menu"
 
 
 def launcher_macos(browser: dict, ext_id: str) -> str:
-    app = Path.home() / "Applications" / "MinimalTube.app"
+    app = macos_app()
     contents = app / "Contents"
     (contents / "MacOS").mkdir(parents=True, exist_ok=True)
     (contents / "Resources").mkdir(parents=True, exist_ok=True)
@@ -523,26 +511,15 @@ def launcher_macos(browser: dict, ext_id: str) -> str:
         f"{shlex.quote(browser['exe'])} --app=chrome-extension://{ext_id}/player.html >/dev/null 2>&1 &\n",
         encoding="utf-8")
     run.chmod(0o755)
-    if shutil.which("iconutil"):
-        with tempfile.TemporaryDirectory() as tmp:
-            iconset = Path(tmp) / "MinimalTube.iconset"
-            iconset.mkdir()
-            for name, size in [("16x16", 16), ("16x16@2x", 32), ("32x32", 32), ("32x32@2x", 64),
-                               ("128x128", 128), ("128x128@2x", 256), ("256x256", 256)]:
-                src = EXTENSION_DIR / "icons" / f"icon{size}.png"
-                if src.is_file():
-                    shutil.copyfile(src, iconset / f"icon_{name}.png")
-            made = subprocess.run(["iconutil", "-c", "icns", "-o", str(contents / "Resources" / "MinimalTube.icns"),
-                                   str(iconset)], capture_output=True, text=True)
-            if made.returncode:
-                warn(f"the app has no icon (iconutil: {made.stderr.strip()})")
+    problem = write_icns(app, saved_theme())
+    if problem:
+        warn(f"the app has no icon ({problem})")
     os.utime(app)  # Finder picks the new icon up
     return f"{app} (Launchpad / Spotlight: MinimalTube)"
 
 
 def launcher_windows(browser: dict, ext_id: str) -> str:
-    icon = app_dir() / "minimaltube.ico"
-    write_ico(icon)
+    icon = windows_ico(saved_theme())
     programs = Path(os.environ.get("APPDATA") or Path.home() / "AppData/Roaming") / "Microsoft/Windows/Start Menu/Programs"
     programs.mkdir(parents=True, exist_ok=True)
     link = programs / "MinimalTube.lnk"
@@ -555,6 +532,10 @@ def launcher_windows(browser: dict, ext_id: str) -> str:
                MT_ARGS=f"--app=chrome-extension://{ext_id}/player.html", MT_ICON=f"{icon},0")
     subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                     "-Command", script], env=env, check=True, capture_output=True)
+    try:  # a taskbar pin of it gets the theme's icon too, and the shell hears of both
+        windows_relink(windows_shortcuts(), icon)
+    except Exception as e:
+        warn(f"the taskbar may show MinimalTube's old icon until you sign in again ({e})")
     return "the Start menu"
 
 
