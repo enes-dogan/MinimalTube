@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MinimalTube Player",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuclYei0GCI+9S2v8cSQvZQcImvHtTluHY/RnjHNV6uGdLibbf+SN1H1BGdMI/bXwIK/2kiZy/BxgbGEJKa2QlyYPI8eIZ9pdEsnjBZRqAwoYEly9DIG7FfDejkOsu5oy79KxsBbR3F9IOndz4K8cbh2gWxtNhaUjH4DgzI/byD6gdNelG6JtfutvR11LdwSBR1bCqE1p6x3PP833X6x5VSSbFMPG9nLqdaTgSTYSYIVEYsNx9trINdcX+UV3sMMCZikZ2t7l+bs+bvjJ08gomzXxyPsFh+4ORFL0liltIComC/oIzA8CVvzOum9u7LTIch8VfYlze1gfpDa3fzNNDwIDAQAB",
   "description": "Right-click a YouTube link and play it in a clean, minimal player. No YouTube page ever loads.",
   "permissions": [
